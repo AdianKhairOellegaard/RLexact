@@ -1290,9 +1290,13 @@ void WriteCross(long long Nener, long long *symvalue, long long flag, struct FLA
       crossfile = outfilepm;
     } // SPM
   }
-  if (flag != 0)
+  if (flag < 0 || flag > 2)
   {
     LogMessageChar("\nError in WriteCross flag!\n");
+  }
+  if (Nener <= 0)
+  {
+    return;
   }
 
 #ifdef TEST_WRITECROSS

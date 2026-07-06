@@ -518,7 +518,6 @@ void Solve_Lanczos(struct FLAGS *input_flags)
     time_stamp(&time_single, START, "finding the ground state");
   }
 
-  // Run Lanczos to find eigenenergies and identify the ground state
   if (mode == MODEGS || mode == MODEN)
   {
     if (Nq_choice > 0)
@@ -540,7 +539,7 @@ void Solve_Lanczos(struct FLAGS *input_flags)
           BuildCycle(q, input_flags);
           etmp = LowestLanczos(q, NULL, &Nener, NORMAL, input_flags);
 
-          if (input_flags->write_energies)
+          if (input_flags->write_energies && (etmp < LARGE_NUMBER))
           {
             WritehmQ(q, input_flags);
             WriteResults(Nener, input_flags);
@@ -582,7 +581,7 @@ void Solve_Lanczos(struct FLAGS *input_flags)
         BuildCycle(q, input_flags);
         etmp = LowestLanczos(q, NULL, &Nener, NORMAL, input_flags);
 
-        if (input_flags->write_energies)
+        if (input_flags->write_energies && (etmp < LARGE_NUMBER))
         {
           WritehmQ(q, input_flags);
           WriteResults(Nener, input_flags);

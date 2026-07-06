@@ -106,6 +106,12 @@ double LowestLanczos(long long k[NSYM], komplex *resvect, long long *Nener,
     MakeSeed(first);
 
   scale = Normalize(first);
+  if (scale == 0.0)
+  {
+    if (Nener)
+      *Nener = 0;
+    return LARGE_NUMBER;
+  }
 
 #ifdef TEST_FINDGROUND
   if (flag == CROSS)
