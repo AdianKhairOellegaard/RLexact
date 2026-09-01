@@ -1,15 +1,11 @@
-
 name: PR — Matrix Build & Run
 
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-  
   push:
     branches: [main]
-  # Allow manual invocation from the Actions tab
   workflow_dispatch:
-
 
 concurrency:
   group: pr-${{ github.ref }}
@@ -23,30 +19,25 @@ jobs:
     name: Build & Run (${{ matrix.os }} )
     runs-on: ${{ matrix.os }}
 
-    # ---- Matrix Settings ----
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-22.04, macos-14]
         include:
-          # You can fine-tune per-OS package manager choices here
           - os: ubuntu-22.04
             shell: bash
           - os: macos-14
             shell: bash
 
-    # ---- Common environment for the job ----
     env:
-      # Adjust these for your project
-      MAKE_TARGET: "RLexact.out"                             # e.g. "RLexact" or "all"; leave blank to run `make`
-      EXECUTABLE_PATH: "src/RLexact.out"                # expected output after make
-      EXEC_ARGS: "./RLexamples/test/test.h"   # arguments to pass when running
-      RUN_LAUNCHER: ""                            # e.g. "mpirun -np 1"; leave empty to run directly
+      MAKE_TARGET: "RLexact.out"
+      EXECUTABLE_PATH: "src/RLexact.out"
+      EXEC_ARGS: "./RLexamples/test/test.h"
+      RUN_LAUNCHER: ""
       CXX_STD: "-std=c++17"
       WARNINGS: "-Wall -Wextra -Wpedantic"
       EXAMPLES_ROOT: "RLexamples"
-      HEADER_GLOB: "**/*.h"         # all .h files recursively under EXAMPLES_ROOT
-      # If you want ASan/UBSan on Linux builds only, you can gate by matrix.os in steps
+      HEADER_GLOB: "**/*.h"
 
     steps:
       - name: Checkout repository
@@ -60,9 +51,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential make clang pkg-config
           sudo apt-get install -y openmpi-bin libopenmpi-dev
-          # Optional OpenCL headers/libs (uncomment if you need OpenCL on CI)
-          # sudo apt-get install -y ocl-icd-opencl-dev
-          # Optional: graphviz, gfortran, etc. as needed
 
       # ---------------- macOS setup ----------------
       - name: Install build dependencies (macOS)
@@ -70,11 +58,8 @@ jobs:
         run: |
           set -euxo pipefail
           brew update
-          # Xcode Command Line Tools are present on the runner; install extras
           brew install llvm make
           brew install open-mpi
-          # For macOS, mpic++ is provided by the MPI package installed above
-          # Optional: OpenCL headers (Apple provides framework at link time; usually no brew needed)
 
       - name: Show toolchain versions
         shell: bash
@@ -88,7 +73,6 @@ jobs:
           echo "Make:"
           make --version
 
-      # Optionally enforce warnings/standard by injecting CXXFLAGS via environment
       - name: Build with make
         shell: bash
         env:
@@ -108,7 +92,6 @@ jobs:
             file "${EXECUTABLE_PATH}" || true
           fi
 
-      # Optional: show runtime library deps (Linux only)
       - name: Show shared library deps (Linux)
         if: matrix.os == 'ubuntu-22.04'
         run: |
@@ -117,7 +100,6 @@ jobs:
             ldd "${EXECUTABLE_PATH}" || true
           fi
 
-      # macOS equivalent uses otool
       - name: Show shared library deps (macOS)
         if: matrix.os == 'macos-14'
         run: |
@@ -125,37 +107,85 @@ jobs:
           if [ -f "${EXECUTABLE_PATH}" ]; then
             otool -L "${EXECUTABLE_PATH}" || true
           fi
-
-      
-     
-      - name: Run executable for each example header
+      - name: Run executable for each example header (all) + verify outputs (macOS only)
         shell: bash
         env:
           EXAMPLES_ROOT: "RLexamples"
           HEADER_GLOB: "*.h"  # pattern used by find -name
         run: |
-          set -euxo pipefail
+          set -euo pipefail
 
           if [ ! -x "${EXECUTABLE_PATH}" ]; then
             echo "Executable not found or not executable: ${EXECUTABLE_PATH}"
             exit 1
           fi
 
-          # Generate list of headers (recursive)
-          # If you want ONLY subdirectories (exclude top-level RLexamples/*.h), add -mindepth 2.
-          # find "${EXAMPLES_ROOT}" -mindepth 2 -type f -name "${HEADER_GLOB}" | sort > headers.list
-          find "${EXAMPLES_ROOT}" -type f -name "${HEADER_GLOB}" | sort > headers.list
+          # Find all headers (adjust -mindepth if you want to exclude top-level headers)
+          find "${EXAMPLES_ROOT}" -type f -name "${HEADER_GLOB}" ! -path "*/results*/*" | sort > headers.list
 
           echo "Discovered $(wc -l < headers.list | tr -d ' ') header(s):"
           awk '{print " - " $0}' headers.list
 
           mkdir -p runlogs
 
+          # ---- Only verify on macOS ----
+          DO_VERIFY=0
+          if [ "${{ matrix.os }}" = "macos-14" ]; then
+            DO_VERIFY=1
+            # Choose results dir naming convention for macOS
+            RESULTS_SUBDIR="results_macos"
+
+            # Inline verification function, used only on macOS
+            verify_folder() {
+              local folder="$1"
+              local results_dir="${folder%/}/${RESULTS_SUBDIR}"
+              local status=0
+
+              if [[ ! -d "$folder" ]]; then
+                echo "VERIFY FAIL: missing folder: $folder"
+                return 1
+              fi
+              if [[ ! -d "$results_dir" ]]; then
+                echo "VERIFY FAIL: missing results dir: $results_dir"
+                return 1
+              fi
+
+              shopt -s nullglob
+              for file in "$folder"/*; do
+                [[ -d "$file" ]] && continue
+                [[ "$file" == *.log ]] && continue
+
+                local rel; rel="$(basename "$file")"
+                local candidate="${results_dir}/${rel}"
+
+                [[ "$candidate" == *.bin ]] && continue
+
+                if [[ ! -e "$candidate" ]]; then
+                  echo "MISSING in results: $candidate"
+                  status=1
+                  continue
+                fi
+
+                if diff -q -- "$file" "$candidate" >/dev/null 2>&1; then
+                  :
+                else
+                  echo "DIFF: $file <-> $candidate"
+                  # Optional: show a unified diff for text files
+                  diff -u --label "baseline:$(basename "$file")" --label "results:$(basename "$candidate")" -- "$file" "$candidate" || true
+                  status=1
+                fi
+              done
+
+              return "$status"
+            }
+          fi
+
           any_fail=0
+
           while IFS= read -r hdr; do
             [ -n "$hdr" ] || continue
 
-            # Build a safe per-run log name from the relative path
+            # Build a safe per-run log name from the relative header path
             rel="${hdr#${EXAMPLES_ROOT}/}"
             safe_log="run-${{ matrix.os }}-${rel//\//_}.log"
 
@@ -166,17 +196,27 @@ jobs:
             else
               "${EXECUTABLE_PATH}" "${hdr}" 2>&1 | tee "runlogs/${safe_log}" || any_fail=1
             fi
+
+            if [ "$DO_VERIFY" -eq 1 ]; then
+              exdir="$(dirname "$hdr")"
+              echo "--- Verifying outputs in: $exdir"
+              if verify_folder "$exdir"; then
+                echo "VERIFY OK: $exdir"
+              else
+                echo "VERIFY FAIL: $exdir"
+                any_fail=1
+              fi
+            else
+              echo "--- Skipping verification on ${{ matrix.os }}"
+            fi
           done < headers.list
 
           cp headers.list "runlogs/INDEX-headers-${{ matrix.os }}.txt"
 
           if [ "${any_fail}" -ne 0 ]; then
-            echo "One or more runs failed. See runlogs/*.log for details."
+            echo "One or more runs or verifications failed. See runlogs/*.log and step output."
             exit 1
-          fi
-
-
-
+          fi      
       - name: Upload logs (always)
         if: always()
         uses: actions/upload-artifact@v4

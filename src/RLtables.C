@@ -19,25 +19,18 @@
 #include <complex>
 
 #include <RLexact.h>
-#include "Functions.h"
 #include <nr.h>
 #include <cnr.h>
 #include <errno.h>
 #include <string.h>
+#include "Functions.h"
 
 /* Functions defined in this file */
 
 
 /* Functions defined elsewhere */
 extern unsigned long long SymOp(long long, unsigned long long);
-extern void itoa(long long, char[]);
-extern void fatalerror(const char *, long long);
-extern void Warning(const char *, long long);
-extern void LogMessageChar(const char *);
-extern void LogMessageInt(long long);
-extern void LogMessageCharDouble(const char *, double);
-extern void LogMessageCharInt(const char *, long long);
-extern void LogMessageChar3Vector(const char *, double, double, double);
+
 
 /* Variables defined in RLexact.c */
 extern long long Nspins, Nsym, Nsymvalue[], symlist[];
@@ -63,7 +56,7 @@ extern long long twom;
    we reach  (d).q = J  , where the elements in J are J_d=j_d/n_d,
    the matrix (d) is expressed in units of the lattice constant, a, and
    q is written in units of (2 pi/a). What we are calculating here is (d)^-1 */
-void InvertMatrix(long long dim, double **matrix, double **inverse)
+void InvertMatrix(long long dim, double **matrix, double **inverse, struct FLAGS *input_flags)
 {
   double det, d1, d2;
   long long i, j;
@@ -91,7 +84,8 @@ void InvertMatrix(long long dim, double **matrix, double **inverse)
     inverse[1][0] = -matrix[0][1] / det;
   }
 
-#ifdef TEST_INVERTMATRIX
+if (input_flags->TEST_INVERTMATRIX)
+{
   LogMessageCharInt("InvertMatrix: dim = ", dim);
   LogMessageChar("\n InvertMatrix called with matrix:\n");
   for (i = 0; i < dim; i++)
@@ -110,7 +104,7 @@ void InvertMatrix(long long dim, double **matrix, double **inverse)
       LogMessageCharDouble(" ", inverse[i][j]);
     LogMessageChar(")\n");
   }
-#endif /* TEST_INVERTMATRIX */
+}
 
   if (dim > 2)
     fatalerror("In InvertMatrix: No of dimensions too large", dim);
@@ -119,7 +113,7 @@ void InvertMatrix(long long dim, double **matrix, double **inverse)
 
 /* BuildTables() makes tables of cos, sin, sqrt, and
    phases for structure factors */
-void BuildTables()
+void BuildTables(struct FLAGS *input_flags)
 {
   long long i, j, q;
   double tmp;
@@ -135,28 +129,30 @@ void BuildTables()
   for (i = 0; i < 2 * (Nspins + 1) * Nspins; i++)
     sqroot[i] = sqrt((double)i);
 
-#ifdef TEST_TABLES
+if (input_flags->TEST_TABLES)
+{
   for (i = 0; i < Nspins; i++)
     LogMessageCharInt(" i:", i);
   LogMessageChar3Vector(". (cos, sin, sqrt): ", cosine[i], sine[i], sqroot[i]);
-#endif
+}
 }
 
 /* Count() counts the number of up spins in a state */
 /* TODO: modify for S>1/2 */
-long long Count(unsigned long long state)
+long long Count(unsigned long long state, struct FLAGS *input_flags)
 {
   long long i, c = 0;
 
   for (i = 0; i < Nspins; i++)
   {
     c += ((state & (((unsigned long long)1) << i)) != 0);
-#ifdef TEST_COUNT
+if (input_flags->TEST_COUNT)
+{
     LogMessageCharInt(" State: ", state);
     LogMessageCharInt("i = ", i);
     LogMessageCharInt(" count: ", c);
     LogMessageChar("\n");
-#endif
+}
   }
 
   return c;
@@ -256,7 +252,8 @@ long long ReadUnique(long long twom, int Nunique_only, struct FLAGS *input_flags
       fatalerror("Cannot read unique array from uniques file", errno);
   }
 
-#ifdef TEST_READUNIQUE
+if (input_flags->TEST_READUNIQUE)
+{
   LogMessageCharInt("Nunique found: ", Nunique);
   for (int i = 0; i < Nunique; i++)
   {
@@ -268,7 +265,7 @@ long long ReadUnique(long long twom, int Nunique_only, struct FLAGS *input_flags
     LogMessageChar("\n");
   }
 
-#endif
+}
 
   fclose(unifile);
   return (Nunique);
@@ -369,12 +366,13 @@ unsigned long long FillUnique(long long twom, int CountOnly, struct FLAGS *input
   unsigned long long bitmap, basis_c = 0;
   long long i, j, n, pos[NSPINS + 1];
 
-#ifdef TEST_FILLUNIQUE
+if (input_flags->TEST_FILLUNIQUE)
+{
   if (CountOnly == 1)
     LogMessageChar("\nCountOnly\n");
   LogMessageCharInt("Start of FillUnique. MAX_STATE = ", (unsigned long long)MAX_STATE);
   LogMessageChar("\n");
-#endif
+}
 
   if (input_flags->m_sym)
   {
@@ -385,27 +383,31 @@ unsigned long long FillUnique(long long twom, int CountOnly, struct FLAGS *input
     bitmap = 0;
     for (j = 0; j < n; j++)
       bitmap += ((unsigned long long)1) << pos[j];
-#ifdef TEST_FILLUNIQUE
+if (input_flags->TEST_FILLUNIQUE)
+{
     LogMessageCharInt(" Loop over all states with ", n);
     LogMessageCharInt(" spins up starting with state ", bitmap);
     LogMessageChar("\n");
-#endif
+}
     while (bitmap < ((unsigned long long)MAX_STATE))
     {
-#ifdef TEST_FILLUNIQUE
+if (input_flags->TEST_FILLUNIQUE)
+{
       LogMessageCharInt("\nLooking at state ", bitmap);
-#endif
-      if (IsUnique(bitmap))
+}
+      if (IsUnique(bitmap, input_flags))
       {
-#ifdef TEST_FILLUNIQUE
+if (input_flags->TEST_FILLUNIQUE)
+{
         LogMessageCharInt("\nEnter IsUnique criteria, basis_c=", basis_c);
-#endif // TESTFILLUNIQUE
+}
         if (!CountOnly)
         {
           unique[basis_c] = (unsigned long long)bitmap;
         }
         basis_c++;
-#ifdef TEST_FILLUNIQUE
+if (input_flags->TEST_FILLUNIQUE)
+{
         LogMessageCharInt("\n basis_c=", basis_c);
         if (!CountOnly)
         {
@@ -420,7 +422,7 @@ unsigned long long FillUnique(long long twom, int CountOnly, struct FLAGS *input
           LogMessageCharInt("is ", bitmap);
           LogMessageChar("\n");
         }
-#endif
+}
       }
       j = 0; // now, reposition the spins to cover all combinations of spin up
       while ((j < n - 1) && (pos[j + 1] == (pos[j] + 1)))
@@ -445,19 +447,21 @@ unsigned long long FillUnique(long long twom, int CountOnly, struct FLAGS *input
     }
     for (bitmap = 0; bitmap < MAX_STATE; bitmap++)
     {
-#ifdef TEST_FILLUNIQUE
+if (input_flags->TEST_FILLUNIQUE)
+{
       LogMessageCharInt(" basis_c = ", basis_c);
       LogMessageCharInt(" bitmap = ", bitmap);
-#endif
-      if (IsUnique(bitmap))
+}
+      if (IsUnique(bitmap, input_flags))
       { // Unique found
         if (!CountOnly)
         {
           unique[basis_c] = bitmap;
-#ifdef TEST_FILLUNIQUE_LIST
+if (input_flags->TEST_FILLUNIQUE_LIST)
+{
           LogMessageCharInt("\n Unique no: ", basis_c);
           LogMessageCharInt(" , ", unique[basis_c]);
-#endif
+}
         }
         basis_c++;
       }
@@ -466,10 +470,11 @@ unsigned long long FillUnique(long long twom, int CountOnly, struct FLAGS *input
 
   Nu2 = ((unsigned long long)1) << (long long)ceil(log(basis_c + 1) / log(2)); // find smallest Nu2 = 2^^j > n
 
-#ifdef TEST_FILLUNIQUE
+if (input_flags->TEST_FILLUNIQUE)
+{
   LogMessageCharInt("\n Number of uniques found: ", basis_c);
   LogMessageChar("End of FillUnique  reached. \n");
-#endif
+}
 
   return (basis_c);
 }
@@ -486,26 +491,29 @@ void FillUniqueObservables(struct FLAGS *input_flags)
   for (index = 0; index < Nunique; index++)
   {
     state = unique[index];
-    count = Count(state);
-#ifdef TEST_FILLUNIQUEOBSERVABLES
+    count = Count(state, input_flags);
+if (input_flags->TEST_FILLUNIQUEOBSERVABLES)
+{
     LogMessageCharInt("State no ", index);
     LogMessageCharInt("out of states numbers ", Nunique);
     LogMessageCharInt(" : ", state);
     LogMessageCharInt(", count: ", count);
-#endif /* TEST_FILLUNIQUEOBSERVABLES */
+}
     if (!input_flags->m_sym)
     {
       mag[index] = count - (Nspins + 1) / 2;
       ;
       /* Integer division, force integer m, even if Sz is half-integer */
-#ifdef TEST_FILLUNIQUEOBSERVABLES
+if (input_flags->TEST_FILLUNIQUEOBSERVABLES)
+{
       LogMessageCharInt(", m=", mag[index]);
-#endif /* TEST_FILLUNIQUEOBSERVABLES */
+}
     }
 
-#ifdef TEST_FILLUNIQUEOBSERVABLES
+if (input_flags->TEST_FILLUNIQUEOBSERVABLES)
+{
     LogMessageChar(", Done! \n");
-#endif /* TEST_FILLUNIQUEOBSERVABLES */
+}
   }
 
   return;
@@ -521,13 +529,14 @@ void BuildCycle(long long q[NSYM], struct FLAGS *input_flags)
   double p_i, p_r;
   double qlength;
 
-#ifdef TEST_OCC
+if (input_flags->TEST_OCC)
+{
   LogMessageChar("\n BuildCycle called for");
   LogMessageCharInt(" q =(", q[0]);
   LogMessageCharInt(",", q[1]);
   // LogMessageCharInt("), 2*m=",twom);
   LogMessageChar("\n");
-#endif /* TEST_OCC */
+}
 
   for (j = 0; j < Nunique; j++)
   {
@@ -590,7 +599,8 @@ void BuildCycle(long long q[NSYM], struct FLAGS *input_flags)
         uniq_k[uniq_count++] = j;
     }
 
-#ifdef TEST_OCC
+if (input_flags->TEST_OCC)
+{
     LogMessageCharInt(" Unique", j);
     LogMessageCharInt(" : ", unique[j]);
     LogMessageCharInt(" , phi=", phi);
@@ -598,7 +608,7 @@ void BuildCycle(long long q[NSYM], struct FLAGS *input_flags)
     LogMessageCharInt(" , Nocc_0[j]=", Nocc_0[j]);
     LogMessageCharInt(" , uniq_count=", uniq_count);
     LogMessageChar("\n");
-#endif /* TEST_OCC */
+}
   }
 
   if (input_flags->use_exact_matrix)
@@ -606,9 +616,10 @@ void BuildCycle(long long q[NSYM], struct FLAGS *input_flags)
     Nuniq_k = uniq_count;
   }
 
-#ifdef TEST_OCC
+if (input_flags->TEST_OCC)
+{
   LogMessageChar(" Exit BuildCycle \n");
-#endif /* TEST_OCC */
+}
   return;
 }
 
@@ -616,7 +627,7 @@ void BuildCycle(long long q[NSYM], struct FLAGS *input_flags)
 an arbitrary state by searching for the smallest number
 found by applying symmetry operations. */
 
-unsigned long long FindUnique(unsigned long long state, int *Tvec)
+unsigned long long FindUnique(unsigned long long state, int *Tvec, struct FLAGS *input_flags)
 {
   /* This routine is where most of the time is spent (for Lanczos). */
 
@@ -624,10 +635,11 @@ unsigned long long FindUnique(unsigned long long state, int *Tvec)
   int T[NSYM];
   unsigned long long new_state, min;
 
-#ifdef TEST_FINDUNIQUE
+if (input_flags->TEST_FINDUNIQUE)
+{
   LogMessageCharInt(" FindUnique called with state ", state);
   LogMessageChar("\n");
-#endif
+}
 
   min = state;
   for (i = 0; i < Nsym; i++)
@@ -641,7 +653,8 @@ unsigned long long FindUnique(unsigned long long state, int *Tvec)
     for (i = 0; i < Nsym; i++)
       Tvec[i] = T[i];
 
-#ifdef TEST_FINDUNIQUE_DETAIL
+if (input_flags->TEST_FINDUNIQUE_DETAIL)
+{
     LogMessageCharInt("sym =", sym);
     LogMessageChar("\n T=(");
     for (sym = 0; sym < Nsym; sym++)
@@ -651,21 +664,22 @@ unsigned long long FindUnique(unsigned long long state, int *Tvec)
       LogMessageInt(Tvec[sym]);
     LogMessageCharInt(") State: ", new_state);
     LogMessageChar("\n");
-#endif
+}
   }
   TLOOP_END
 
-#ifdef TEST_FINDUNIQUE
+if (input_flags->TEST_FINDUNIQUE)
+{
   LogMessageCharInt(" Found u = ", min);
   LogMessageChar("\n");
-#endif
+}
 
   return min;
 }
 
 /* Check if a state is a unique state
    Code similar to FindUnique */
-long long IsUnique(unsigned long long state)
+long long IsUnique(unsigned long long state, struct FLAGS *input_flags)
 {
   int j;
 
@@ -675,12 +689,13 @@ long long IsUnique(unsigned long long state)
 
   /* Run through symmetry operations on state */
   TLOOP_BEGIN
-#ifdef TEST_ISUNIQUE
+if (input_flags->TEST_ISUNIQUE)
+{
   LogMessageChar(" T =");
   for (j = 0; j < Nsym; j++)
     LogMessageInt(T[j]);
   LogMessageCharInt(" led to state ", new_state);
-#endif
+}
   if (new_state < state)
   {
     // LogMessageChar("\n");
@@ -688,16 +703,17 @@ long long IsUnique(unsigned long long state)
   }
   TLOOP_END
 
-#ifdef TEST_ISUNIQUE
+if (input_flags->TEST_ISUNIQUE)
+{
   LogMessageChar("Is unique\n");
-#endif
+}
 
   return 1;
 }
 
 /* LookUpU() looks up the index of a unique state
              in the sorted unique table. */
-long long LookUpU(unsigned long long u)
+long long LookUpU(unsigned long long u, struct FLAGS *input_flags)
 {
   unsigned long long entry;
   long long index = Nu2 >> 1, Nb2 = Nu2 >> 2;
@@ -705,10 +721,11 @@ long long LookUpU(unsigned long long u)
   while (1)
   {
     entry = unique[index - 1];
-#ifdef TEST_LOOKUP
+if (input_flags->TEST_LOOKUP)
+{
     LogMessageCharInt("Lookup searching for", u);
     LogMessageCharInt(", reached ", entry);
-#endif /* TEST_LOOKUP */
+}
     if (entry > u)
       index -= Nb2;
     else if (entry < u)
@@ -724,3 +741,5 @@ long long LookUpU(unsigned long long u)
     Nb2 = Nb2 >> 1;
   }
 }
+
+

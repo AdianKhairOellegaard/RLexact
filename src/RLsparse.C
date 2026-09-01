@@ -43,20 +43,6 @@ extern double field[3];
 
 extern int rank;
 
-// Functions defined elsewhere
-extern long long LookUpU(unsigned long long);
-void fatalerror(const char *, long long);
-unsigned long long FindUnique(unsigned long long, int *);
-long long Count(unsigned long long);
-extern void LogMessageChar(const char *);
-extern void LogMessageInt(long long);
-extern void LogMessageCharDouble(const char *, double);
-extern void LogMessageCharInt(const char *, long long);
-extern void LogMessageChar3Vector(const char *, double, double, double);
-
-// Functions defined in this file
-
-// extern void WriteCouplingFiles(unsigned long long, unsigned long long, long long *, double, long long, long long, long long *, long long *, FILE*, FILE*, FILE*);
 //  File buffers
 char Indexbuf[BUFFERSIZE];
 char Jbuf[BUFFERSIZE];
@@ -153,18 +139,20 @@ void MakeSparse(struct FLAGS *input_flags)
   setvbuf(diagfile, Ntotbuf, _IOFBF, BUFFERSIZE);
 
   /* Open files, end */
-#ifdef TEST_MAKESPARSE
-  LogMessageChar("all files opened in makesparse\n");
-#endif
+  if (input_flags->TEST_MAKESPARSE)
+  {
+    LogMessageChar("all files opened in makesparse\n");
+  }
 
   /* Loop over uniques, begin */
   for (i = 0; i < Nunique; i++)
   {
-#ifdef TEST_MAKESPARSE
-    LogMessageCharInt("\n Handling unique ", i);
-    LogMessageCharInt(", bitmap = ", unique[i]);
-    LogMessageChar("\n");
-#endif
+    if (input_flags->TEST_MAKESPARSE)
+    {
+      LogMessageCharInt("\n Handling unique ", i);
+      LogMessageCharInt(", bitmap = ", unique[i]);
+      LogMessageChar("\n");
+    }
     bitmap = unique[i];
     diag = 0;
     nelem = 0;
@@ -211,12 +199,13 @@ void MakeSparse(struct FLAGS *input_flags)
       LogMessageCharInt("Error in writing nelemfile for unique ", i);
       fatalerror("Error was: ", errno);
     }
-#ifdef TEST_MAKESPARSE
-    LogMessageCharInt(" i = ", i);
-    LogMessageCharInt(", nelem = ", nelem);
-    LogMessageCharDouble(", diag = ", diag);
-    LogMessageChar("\n");
-#endif
+    if (input_flags->TEST_MAKESPARSE)
+    {
+      LogMessageCharInt(" i = ", i);
+      LogMessageCharInt(", nelem = ", nelem);
+      LogMessageCharDouble(", diag = ", diag);
+      LogMessageChar("\n");
+    }
   } /* Loop over uniques, end */
 
   Nelem = totcount;
@@ -228,10 +217,11 @@ void MakeSparse(struct FLAGS *input_flags)
     fatalerror("Error was: ", errno);
   }
 
-#ifdef TEST_MAKESPARSE
-  LogMessageCharInt(" MakeSparse() recorded a total of ", Nelem);
-  LogMessageChar(" off-diagonal elements \n");
-#endif // TEST_MAKESPARSE
+  if (input_flags->TEST_MAKESPARSE)
+  {
+    LogMessageCharInt(" MakeSparse() recorded a total of ", Nelem);
+    LogMessageChar(" off-diagonal elements \n");
+  }
 
   /* Close files */
   fclose(nelemfile);
@@ -248,38 +238,40 @@ void WriteCouplingFiles(unsigned long long bitmap, unsigned long long new_state,
 {
   long long l;
   unsigned long long u;
-  u = FindUnique(new_state, T); /* Unique */
-  l = LookUpU(u);               /* Find position in table */
+  u = FindUnique(new_state, T, input_flags); /* Unique */
+  l = LookUpU(u, input_flags);               /* Find position in table */
 
   /* For elements in lower triangle of H, begin write couplings to file */
-#ifdef TEST_MAKESPARSE
-  LogMessageCharInt("l = ", l);
-  LogMessageCharInt("and i = ", i);
-  LogMessageCharDouble(", J = ", real(J));
-  LogMessageCharDouble("+ i", imag(J));
-  LogMessageChar("\n");
-#endif
-
-  if (i <= l && (real(J) != 0 || imag(J) != 0))
+  if (input_flags->TEST_MAKESPARSE)
   {
-#ifdef TEST_MAKESPARSE
-    LogMessageCharInt(" Chg. spins", hamil_coup[j][0]);
-    LogMessageCharInt("and", hamil_coup[j][1]);
-    LogMessageCharInt(", from bitmap", bitmap);
-    LogMessageCharInt("to bitmap", new_state);
-    LogMessageCharInt(", meaning unique: ", u);
+    LogMessageCharInt("l = ", l);
+    LogMessageCharInt("and i = ", i);
     LogMessageCharDouble(", J = ", real(J));
     LogMessageCharDouble("+ i", imag(J));
     LogMessageChar("\n");
+  }
 
-#ifdef TEST_HAM4
-    LogMessageCharInt("   new_state = ", new_state);
-    LogMessageCharInt(" unique = ", u);
-    LogMessageCharDouble(", J = ", J);
-    LogMessageChar("\n");
-#endif
+  if (i <= l && (real(J) != 0 || imag(J) != 0))
+  {
+    if (input_flags->TEST_MAKESPARSE)
+    {
+      LogMessageCharInt(" Chg. spins", hamil_coup[j][0]);
+      LogMessageCharInt("and", hamil_coup[j][1]);
+      LogMessageCharInt(", from bitmap", bitmap);
+      LogMessageCharInt("to bitmap", new_state);
+      LogMessageCharInt(", meaning unique: ", u);
+      LogMessageCharDouble(", J = ", real(J));
+      LogMessageCharDouble("+ i", imag(J));
+      LogMessageChar("\n");
 
-#endif
+      if (input_flags->TEST_HAM4)
+      {
+        LogMessageCharInt("   new_state = ", new_state);
+        LogMessageCharInt(" unique = ", u);
+        // LogMessageCharDouble(", J = ", J); //DLC: J is a complex value, so this log statement is funky
+        LogMessageChar("\n");
+      }
+    }
     errno = 0;
     if (fwrite(&l, sizeof(long long), 1, indexfile) <= 0)
     {
@@ -303,21 +295,23 @@ void WriteCouplingFiles(unsigned long long bitmap, unsigned long long new_state,
 
     *nelem += 1;
 
-#ifdef VERBOSE_MAKESPARSE // this flag doesnt exist anymore - cant see the relevance either!
-    if (totcount % 100000 == 00)
+    if (input_flags->TEST_MAKESPARSE)
     {
-      LogMessageCharInt("", totcount);
-      LogMessageCharInt(" recorded, i = ", i);
-      LogMessageChar("\n");
+      if (*totcount % 100000 == (long long) 00)
+      {
+        LogMessageCharInt("", *totcount);
+        LogMessageCharInt(" recorded, i = ", i);
+        LogMessageChar("\n");
+      }
     }
-#endif
   }
   /* write coupling to file, end */
 
-#ifdef TEST_MAKESPARSE
-  LogMessageCharInt("nelem = ", *nelem);
-  LogMessageChar("\n");
-#endif
+  if (input_flags->TEST_MAKESPARSE)
+  {
+    LogMessageCharInt("nelem = ", *nelem);
+    LogMessageChar("\n");
+  }
 }
 
 // ApplySparse applies a sparse Hamilton operator read from series of 5 files to a state vector. CR 170300
@@ -374,21 +368,22 @@ void ApplySparse(komplex *vectin, komplex *vectout, long long *k, struct FLAGS *
   {
     fatalerror("Cannot open Tfile, sorry! Error was: ", errno);
   }
-#ifdef TEST_APPLYSPARSE
-  for (i = 0; i < Nelem; i++)
+  if (input_flags->TEST_APPLYSPARSE)
   {
-    fread(T, sizeof(long long), Nsym, Tfile);
-    LogMessageCharInt("Coupling ", i);
-    LogMessageCharInt(", T = ", T[0]);
-    for (long long j = 1; j < Nsym; j++)
+    for (i = 0; i < Nelem; i++)
     {
-      LogMessageCharInt(",", T[j]);
+      fread(T, sizeof(long long), Nsym, Tfile);
+      LogMessageCharInt("Coupling ", i);
+      LogMessageCharInt(", T = ", T[0]);
+      for (long long j = 1; j < Nsym; j++)
+      {
+        LogMessageCharInt(",", T[j]);
+      }
+      LogMessageChar("\n");
     }
-    LogMessageChar("\n");
+    fclose(Tfile);
+    Tfile = fopen(filename, "r");
   }
-  fclose(Tfile);
-  Tfile = fopen(filename, "r");
-#endif
   setvbuf(Tfile, Tbuf, _IOFBF, BUFFERSIZE);
   if (input_flags->m_sym)
     sprintf(filename, "%sN%llu_%llu.bin", MATRIXFILENAME, Nspins, twom);
@@ -437,17 +432,19 @@ void ApplySparse(komplex *vectin, komplex *vectout, long long *k, struct FLAGS *
 
   /* Open files, end */
 
-#ifdef TEST_APPLYSPARSE_READ
-  LogMessageCharInt("\n Total number of elements, Nelem =", Nelem);
-#endif
+  if (input_flags->TEST_APPLYSPARSE_READ)
+  {
+    LogMessageCharInt("\n Total number of elements, Nelem =", Nelem);
+  }
 
-#ifdef TEST_APPLYSPARSE
-  LogMessageChar(" ApplySparse() called with vector\n");
-  for (i = 0; i < Nunique; i++)
-    LogMessageCharDouble(" ", real(vectin[i]));
-  LogMessageCharDouble(" + i ", imag(vectin[i]));
-  LogMessageChar("\n");
-#endif
+  if (input_flags->TEST_APPLYSPARSE)
+  {
+    LogMessageChar(" ApplySparse() called with vector\n");
+    for (i = 0; i < Nunique; i++)
+      LogMessageCharDouble(" ", real(vectin[i]));
+    LogMessageCharDouble(" + i ", imag(vectin[i]));
+    LogMessageChar("\n");
+  }
 
   /* Apply sparse H to input vector (vectin) */
 
@@ -470,36 +467,39 @@ void ApplySparse(komplex *vectin, komplex *vectout, long long *k, struct FLAGS *
       fatalerror("Error was: ", errno);
     }
 
-#ifdef TEST_APPLYSPARSE_READ
-    LogMessageCharInt("\n unique no =", i);
-    LogMessageCharInt("correspondig to unique ", unique[i]);
-    LogMessageCharInt(" number of couplings nelem =", nelem);
-    LogMessageCharDouble(" and Diag =", diag);
-    LogMessageChar("\n");
-    // LogMessageCharInt("and T=",T);
-#endif
+    if (input_flags->TEST_APPLYSPARSE_READ)
+    {
+      LogMessageCharInt("\n unique no =", i);
+      LogMessageCharInt("correspondig to unique ", unique[i]);
+      LogMessageCharInt(" number of couplings nelem =", nelem);
+      LogMessageCharDouble(" and Diag =", diag);
+      LogMessageChar("\n");
+      // LogMessageCharInt("and T=",T);
+    }
 
     u_occ = Nocc[i];
-#ifdef TEST_APPLYSPARSE
-    LogMessageCharInt(" i = ", i);
-    LogMessageCharInt(", nelem = ", nelem);
-    LogMessageCharDouble(", diag = ", diag);
-    LogMessageCharInt(", Nocc = ", u_occ);
-    LogMessageChar("\n");
-#endif
+    if (input_flags->TEST_APPLYSPARSE)
+    {
+      LogMessageCharInt(" i = ", i);
+      LogMessageCharInt(", nelem = ", nelem);
+      LogMessageCharDouble(", diag = ", diag);
+      LogMessageCharInt(", Nocc = ", u_occ);
+      LogMessageChar("\n");
+    }
 
     /* Diagonal term */
     vectout[i] += diag * vectin[i];
 
-#ifdef TEST_APPLYSPARSE_DEEP
-    for (r = 0; r < Nunique; r++)
+    if (input_flags->TEST_APPLYSPARSE_DEEP)
     {
-      LogMessageCharInt("vectout[", r);
-      LogMessageCharDouble("] = ", real(vectout[r]));
-      LogMessageCharDouble(" + i ", imag(vectout[r]));
-      LogMessageChar("\n");
+      for (r = 0; r < Nunique; r++)
+      {
+        LogMessageCharInt("vectout[", r);
+        LogMessageCharDouble("] = ", real(vectout[r]));
+        LogMessageCharDouble(" + i ", imag(vectout[r]));
+        LogMessageChar("\n");
+      }
     }
-#endif // TEST_APPLYSPARSE_DEEP
 
     /* Loop over interactions concerning the particular unique (i) */
     for (j = 0; j < nelem; j++)
@@ -524,15 +524,16 @@ void ApplySparse(komplex *vectin, komplex *vectout, long long *k, struct FLAGS *
       }
       elemcount++;
 
-#ifdef TEST_APPLYSPARSE_READ
-      LogMessageCharDouble("\n nelem =", j);
-      LogMessageCharInt(" Index =", l);
-      LogMessageCharInt(" equals Nocc[l] =", Nocc[l]);
-      LogMessageCharDouble("and elemJ =", real(elemJ));
-      LogMessageCharDouble("+i", imag(elemJ));
-      LogMessageChar("\n");
-      // LogMessageCharInt("and T=",T);
-#endif
+      if (input_flags->TEST_APPLYSPARSE_READ)
+      {
+        LogMessageCharDouble("\n nelem =", j);
+        LogMessageCharInt(" Index =", l);
+        LogMessageCharInt(" equals Nocc[l] =", Nocc[l]);
+        LogMessageCharDouble("and elemJ =", real(elemJ));
+        LogMessageCharDouble("+i", imag(elemJ));
+        LogMessageChar("\n");
+        // LogMessageCharInt("and T=",T);
+      }
 
       // If state is allowed for present k[], begin
       if ((Nocc[l] > 0) && (u_occ > 0))
@@ -544,58 +545,62 @@ void ApplySparse(komplex *vectin, komplex *vectout, long long *k, struct FLAGS *
         for (s = 0; s < Nsym; s++)
         {
           phi += T[s] * k[s] * Nspins / Nsymvalue[s];
-#ifdef DEBUG_APPLYSPARSE
-          if (s == 0)
+          if (input_flags->DEBUG_APPLYSPARSE)
           {
-            for (long long testsym = 0; testsym < Nsym; testsym++)
+            if (s == 0)
             {
-              LogMessageCharInt("sym ", testsym);
-              LogMessageCharInt(" has T = ", T[testsym]);
-              LogMessageCharInt(" q = ", k[testsym]);
-              LogMessageChar("\n");
+              for (long long testsym = 0; testsym < Nsym; testsym++)
+              {
+                LogMessageCharInt("sym ", testsym);
+                LogMessageCharInt(" has T = ", T[testsym]);
+                LogMessageCharInt(" q = ", k[testsym]);
+                LogMessageChar("\n");
+              }
             }
+            LogMessageCharInt("From state ", i);
+            LogMessageCharInt(" to ", l);
+            LogMessageCharInt(" s = ", s);
+            LogMessageCharInt(" T = ", T[s]);
+            // LogMessageCharInt(" q = ",q);
+            LogMessageCharInt(" k = ", k[s]);
+            LogMessageCharInt(" got phase ", phi);
+            LogMessageChar("\n");
           }
-          LogMessageCharInt("From state ", i);
-          LogMessageCharInt(" to ", l);
-          LogMessageCharInt(" s = ", s);
-          LogMessageCharInt(" T = ", T[s]);
-          // LogMessageCharInt(" q = ",q);
-          LogMessageCharInt(" k = ", k[s]);
-          LogMessageCharInt(" got phase ", phi);
-          LogMessageChar("\n");
-#endif /* DEBUG_APPLYSPARSE */
         }
         phi = phi % Nspins;
         coup = elemJ * (cosine[phi] + I * sine[phi]) * sqrt((double)Nocc[l] / u_occ);
-#ifdef TEST_APPLYSPARSE
-        LogMessageCharInt(" k1 = ", k[3]);
-        LogMessageCharInt(" k2 = ", k[2]);
-        LogMessageCharInt(" Coupling to state ", l);
-        LogMessageCharInt(" phase = ", phi);
-        LogMessageCharDouble(" coup = ", real(coup));
-        LogMessageCharDouble(" + i ", imag(coup));
-        LogMessageChar("\n");
-#endif // TEST_APPLYSPARSE
+        if (input_flags->TEST_APPLYSPARSE)
+        {
+          LogMessageCharInt(" k1 = ", k[3]);
+          LogMessageCharInt(" k2 = ", k[2]);
+          LogMessageCharInt(" Coupling to state ", l);
+          LogMessageCharInt(" phase = ", phi);
+          LogMessageCharDouble(" coup = ", real(coup));
+          LogMessageCharDouble(" + i ", imag(coup));
+          LogMessageChar("\n");
+        }
 
         vectout[l] += coup * vectin[i];
         /* Add the other side of the diagonal, utilize that H is Hermitean */
         if (i != l)
         {
           vectout[i] += real(coup) * vectin[l] - I * imag(coup) * vectin[l]; // TODO: replace with conjucate function ??
-#ifdef TEST_APPLYSPARSE
-//    printf("conjugate gives (from %llu to %llu): %g+i*%g (invector=%g+i*%g)\n",l,i,real(real(coup)*vectin[l]-I*imag(coup)*vectin[l]),imag(real(coup)*vectin[l]-I*imag(coup)*vectin[l]),real(vectin[l]),imag(vectin[l]));
-#endif // TEST_APPLYSPARSE
+          if (input_flags->TEST_APPLYSPARSE)
+          {
+            //    printf("conjugate gives (from %llu to %llu): %g+i*%g (invector=%g+i*%g)\n",l,i,real(real(coup)*vectin[l]-I*imag(coup)*vectin[l]),imag(real(coup)*vectin[l]-I*imag(coup)*vectin[l]),real(vectin[l]),imag(vectin[l]));
+          }
         }
       } /* If state is allowed for present k[], end */
-#ifdef TEST_APPLYSPARSE_DEEP
-      for (r = 0; r < Nunique; r++)
+      if (input_flags->TEST_APPLYSPARSE_DEEP)
       {
-        LogMessageCharInt("vectout[", r);
-        LogMessageCharDouble("] = ", real(vectout[r]));
-        LogMessageCharDouble(" + i ", imag(vectout[r]));
-        LogMessageChar("\n");
+        for (r = 0; r < Nunique; r++)
+        {
+          LogMessageCharInt("vectout[", r);
+          LogMessageCharDouble("] = ", real(vectout[r]));
+          LogMessageCharDouble(" + i ", imag(vectout[r]));
+          LogMessageChar("\n");
+        }
       }
-#endif // TEST_APPLYSPARSE_DEEP
     } /* Loop over interactions, end */
 
   } /* Loop over uniques, end */
@@ -607,15 +612,16 @@ void ApplySparse(komplex *vectin, komplex *vectout, long long *k, struct FLAGS *
     fatalerror("Exiting", 0);
   }
 
-#ifdef TEST_APPLYSPARSE
-  LogMessageChar(" ApplySparse() returning vector: \n");
-  for (i = 0; i < Nunique; i++)
+  if (input_flags->TEST_APPLYSPARSE)
   {
-    LogMessageCharDouble(" ", real(vectout[i]));
-    LogMessageCharDouble(" + i ", imag(vectout[i]));
-    LogMessageChar("\n");
+    LogMessageChar(" ApplySparse() returning vector: \n");
+    for (i = 0; i < Nunique; i++)
+    {
+      LogMessageCharDouble(" ", real(vectout[i]));
+      LogMessageCharDouble(" + i ", imag(vectout[i]));
+      LogMessageChar("\n");
+    }
   }
-#endif
 
   /* Close files */
   fclose(nelemfile);

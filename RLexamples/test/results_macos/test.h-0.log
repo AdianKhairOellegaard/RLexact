@@ -1,0 +1,16 @@
+ RLio.C successful. 
+ Starting diagonalization 
+ ...  Added symmetry :  0  , round :  0  , state :  1  
+  Added symmetry :  1  , round :  0  , state :  1  
+  Added symmetry :  1  , round :  1  , state :  2  
+  With M-symmetry 
+  IN FillUniqueObservables
+  
+writing sparse matrix to file: begin  writing sparse matrix to file: end
+  GS_energy after Allreduce -0.5  
+ 0  Nqvalue 1  Nsymvalue 1  
+ 1  Nqvalue 2  Nsymvalue 2  
+ Total execution done, 0.009943 seconds used
+ 
+ End of diagonalization program RLexact.
+  deallocated correctly! 

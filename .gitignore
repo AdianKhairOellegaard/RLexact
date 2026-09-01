@@ -2,14 +2,20 @@
 *.bin
 
 # Output files
-*.log
-*.dat
-*.log
-*.sxx
-*.syy
-*.szz
-*.smp
-*.spm
+# *.log
+# *.dat
+# *.log
+# *.sxx
+# *.syy
+# *.szz
+# *.smp
+# *.spm
+
+RLexamples/*/*.szz
+RLexamples/*/*.sxx
+RLexamples/*/*.syy
+RLexamples/*/*.log
+RLexamples/*/*.dat
 
 # Prerequisites
 *.d

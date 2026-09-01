@@ -17,28 +17,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
-
+#include <complex>
 #include <RLexact.h>
-// #include <cnr.h>
+#include <cnr.h>
+#include "Functions.h"
 
 /* Functions defined in this file */
-unsigned long long SymOp(long long, unsigned long long);
-// Perform the actual symmetry operation on the states
-unsigned long long SymOpSite(long long, long long);
-// Similar to SymOp. TODO: Merge the two functions
-void InitSym();
-// Initialize the symmetry operations and corresponding tables
-void TestSym();
-// Test symmetry operations (during initialization)
 
-/* Functions defined elsewhere */
-extern void fatalerror(const char *, long long);
-extern void Warning(const char *, long long);
-extern void LogMessageChar(const char *);
-extern void LogMessageInt(long long);
-extern void LogMessageCharDouble(const char *, double);
-extern void LogMessageCharInt(const char *, long long);
-extern void LogMessageChar3Vector(const char *, double, double, double);
 
 /* Global variables defined in RLexact.c */
 extern long long Nspins, Ncoup, Nsym, Nsymvalue[NSYM], Nsymadd;
@@ -203,7 +188,7 @@ unsigned long long SymOpSite(long long i, long long site)
 }
 
 /* Initialise symmetry operations and check if requested */
-void InitSym()
+void InitSym(struct FLAGS *input_flags)
 {
 
   long long sym, Nsv[NSYM + NSYMADD], i, j;
@@ -212,10 +197,11 @@ void InitSym()
   flipmask = ~(~((unsigned long long)0) << Nspins);
   if (flipmask == 0)
     flipmask = ~flipmask;
-#ifdef TEST_SYM
-  LogMessageCharInt("flipmask= ", flipmask);
-  LogMessageChar("\n");
-#endif /* TEST_SYM */
+  if (input_flags->TEST_SYM)
+  {
+    LogMessageCharInt("flipmask= ", flipmask);
+    LogMessageChar("\n");
+  }
   Nsv[SPIN_FLIP] = 2;
   Nsv[FCC32Tx] = 4;
   Nsv[FCC32Ty] = 4;
@@ -247,22 +233,23 @@ void InitSym()
   for (sym = 0; sym < Nsym; sym++)
   {
     Nsymvalue[sym] = Nsv[symlist[sym]];
-#ifdef TEST_SYM
-    LogMessageChar3Vector("sym,symlist,Nsv : ", sym, symlist[sym], Nsv[symlist[sym]]);
-    LogMessageChar("\n");
-#endif /* TEST_SYM */
+    if (input_flags->TEST_SYM)
+    {
+      LogMessageChar3Vector("sym,symlist,Nsv : ", sym, symlist[sym], Nsv[symlist[sym]]);
+      LogMessageChar("\n");
+    }
   }
 
-#ifdef TEST_SYM
-  TestSym();
-#endif /* TEST_SYM */
+  if (input_flags->TEST_SYM)
+  {
+    TestSym(input_flags);
+  }
 
   return;
 }
 
-#ifdef TEST_SYM
 // Used for debugging the symmetry operations
-void TestSym()
+void TestSym(struct FLAGS *input_flags)
 {
   long long sym, i, j, s, T[NSYM];
   unsigned long long new_state, state;
@@ -325,7 +312,6 @@ void TestSym()
   }
   return;
 }
-#endif /* TEST_SYM */
 
 void MakeSymCoup(struct FLAGS *input_flags)
 /* MakeSymCoup constructs the full Hamiltonian from a general
@@ -341,12 +327,13 @@ void MakeSymCoup(struct FLAGS *input_flags)
     s1 = hamil_coup[i][1];
     for (sym = 0; sym < Nsym; sym++)
       T[sym] = 0;
-#ifdef TEST_SYMCOUPLING
-    LogMessageCharInt("Initial coupling ", i);
-    LogMessageCharInt(" : ", s0);
-    LogMessageCharInt(" -> ", s1);
-    LogMessageChar("\n");
-#endif /* TEST_SYMCOUPLING */
+    if (input_flags->TEST_SYMCOUPLING)
+    {
+      LogMessageCharInt("Initial coupling ", i);
+      LogMessageCharInt(" : ", s0);
+      LogMessageCharInt(" -> ", s1);
+      LogMessageChar("\n");
+    }
 
     sym = 0;
     T[sym] = 1; /* don't copy the initial coupling pattern */
@@ -358,11 +345,12 @@ void MakeSymCoup(struct FLAGS *input_flags)
       new_s0 = SymOpSite(sym, new_s0);
       new_s1 = SymOpSite(sym, new_s1);
 
-#ifdef TEST_SYMCOUPLING
-      LogMessageCharInt("coupling ", new_s0);
-      LogMessageCharInt(" -> ", new_s1);
-      LogMessageChar("\n");
-#endif /* TEST_SYMCOUPLING */
+      if (input_flags->TEST_SYMCOUPLING)
+      {
+        LogMessageCharInt("coupling ", new_s0);
+        LogMessageCharInt(" -> ", new_s1);
+        LogMessageChar("\n");
+      }
       hamil_coup[Nc][0] = new_s0;
       hamil_coup[Nc][1] = new_s1;
       Jzz[Nc] = Jzz[i];

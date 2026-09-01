@@ -18,6 +18,7 @@
 #include <complex>
 
 #include <RLexact.h>
+#include "Functions.h"
 
 /* Global variables declared elsewhere */
 
@@ -25,20 +26,9 @@ extern long long Nunique;
 
 /* Functions defined elsewhere */
 
-extern void LogMessageChar(const char *);
-extern void LogMessageInt(long long);
-extern void LogMessageImag(long long);
-extern void LogMessageCharDouble(const char *, double);
-extern void LogMessageCharInt(const char *, long long);
-extern void LogMessageChar3Vector(const char *, double, double, double);
 #ifndef NEVER
 double rot_mat[3][3];
 #endif /* M_SYM */
-
-#ifdef TEST_ROTATION
-// functions decalred in this file, just for testing!
-void RotateVector(double *vector);
-#endif
 
 /* reverse string */
 void reverse(char s[])
@@ -72,7 +62,7 @@ void itoa(long long n, char s[])
 }
 
 #ifndef NEVER
-void FillRotationMatrix(double *vector)
+void FillRotationMatrix(double *vector, struct FLAGS *input_flags)
 {
   double costh, sinth, cosphi, sinphi;
 
@@ -88,14 +78,15 @@ void FillRotationMatrix(double *vector)
     cosphi = vector[X] / sinth;
     sinphi = vector[Y] / sinth;
   }
-#ifdef TEST_ROTATION
+if (input_flags->TEST_ROTATION)
+{
   LogMessageCharInt("Rotation angles: cos(th): ", costh);
   LogMessageCharInt("Rotation angles: sin(th): ", sinth);
   LogMessageCharInt("Rotation angles: cos(phi): ", cosphi);
   LogMessageCharInt("Rotation angles: sin(phi): ", sinphi);
   LogMessageChar("\n");
 // SQR(cosphi)+SQR(sinphi)
-#endif /* TEST_ROTATION */
+}
   rot_mat[X][X] = cosphi * costh;
   rot_mat[X][Y] = sinphi * costh;
   rot_mat[X][Z] = -sinth;
@@ -105,7 +96,8 @@ void FillRotationMatrix(double *vector)
   rot_mat[Z][X] = sinth * cosphi;
   rot_mat[Z][Y] = sinth * sinphi;
   rot_mat[Z][Z] = costh;
-#ifdef TEST_ROTATION
+if (input_flags->TEST_ROTATION)
+{
   LogMessageChar3Vector("The rotation matrix is: \n", rot_mat[X][X], rot_mat[X][Y], rot_mat[X][Z]);
   LogMessageChar3Vector("\n", rot_mat[Y][X], rot_mat[Y][Y], rot_mat[Y][Z]);
   LogMessageChar3Vector("\n", rot_mat[Z][X], rot_mat[Z][Y], rot_mat[Z][Z]);
@@ -118,7 +110,7 @@ void FillRotationMatrix(double *vector)
   LogMessageChar3Vector("Rotation of vector", vector[X], vector[Y], vector[Z]);
   LogMessageChar3Vector(" gives ", test_vec[X], test_vec[Y], test_vec[Z]);
   LogMessageChar("\n");
-#endif /* TEST_ROTATION */
+}
 }
 #endif /* M_SYM */
 

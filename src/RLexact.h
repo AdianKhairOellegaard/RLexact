@@ -10,6 +10,7 @@
 *
 ============================================
 */
+#include "Max_problem.h"
 #ifndef HEADER // Firstly make sure to only include all this once.
 
 #define HEADER
@@ -27,45 +28,116 @@ struct FLAGS
   long long find_cross_pm;   // Find cross in S^+-(q,w) and S^-+(q,w)
                              //  instead of S^xx (q,w) and S^yy(q,w).
                              // Requires MSYM and FIND_CROSS.
+  long long motive;          // DLC TODO: We need a description of the MOTIVE. Maybe
+  long long find_mag;        // DLC TODO: Needs description. Debugging required! Should only be used WITHOUT MSYM SJ 20/11/17
+  long long cross;           // DLC: I have literally no idea what this is
 
   // OUTPUT SPECIFIERS
   long long write_energies;
-  long long write_states; // Prints groundstate in dat-file
-                          // and all eigenstates if MATRIX;
+  long long write_states;        // Prints groundstate in dat-file
+                                 // and all eigenstates if MATRIX;
+  long long write_magnetisation; // DLC TODO: Needs description
+                                 // Should only be used WITHOUT MSYM, Works only for MATRIX-mode, SJ 31/5/16
 
-  // The following is all the old Test commands and verbose commands.
-  // Putting them here, because they are making it difficult to see indentation.
+  // ============================================================
+  // DEBUG / TEST FLAGS (converted from historical #define switches)
+  // ============================================================
+
+  // --- From RLexact.C / RLexact.c ---
+  long long random_number_seed;
+  long long TEST_GS_SEARCH;
+  long long TEST_ALLOCATE;
+  long long MAIN_LOOP_MESSAGES;
+
+  // --- From RLhamil.c ---
+  long long TEST_HAMILTON; // only in use in hamil.dipole
+  long long TEST_MAT_ELEM;
+  long long TEST_HAM2;
+  long long TEST_HAMZEE;
+  long long TEST_FILLHAM;
+
+  // --- From RLsparse.C ---
+  long long TEST_MAKESPARSE;
+  long long TEST_APPLYSPARSE;
+  long long TEST_APPLYSPARSE_READ;
+  long long TEST_APPLYSPARSE_DEEP;
+  long long DEBUG_APPLYSPARSE;
+  long long TEST_HAM4;
+
+  // --- From RLmatrix.c ---
+  long long MATRIX_MESSAGES;
+  long long TEST_EIG;
+  long long TEST_EVEC;
+  long long TEST_MATRIXMAG;
+  long long TEST_CALC_M;
+  long long TEST_CALC_SZZQ;
+
+  // --- From RLlanczos.c ---
+  long long TEST_SEED;
+  long long TEST_EIGENVECTORS;
+  long long TEST_FINDGROUND;
+  long long TEST_STATES;
+  long long TEST_ENERGIES;
+  long long TEST_LANCZOS_VECTOR;
+  long long LANCZOS_MESSAGES;
+  long long VERBOSE_LANCZOS;
+  long long TEST_FINDMAG;
+  long long DEBUG_SEED; // WARNING: May cause premature stopping of lanczos algorithm
+  long long DEBUG_LANCSTEP;
+  long long TEST_LANCCROSS;
+
+  // --- From RLtables.c ---
+  long long TEST_TABLES;
+  long long TEST_INVERTMATRIX;
+  long long TEST_OCC;
+  long long TEST_ISUNIQUE;
+  long long TEST_FINDUNIQUE;
+  long long TEST_FINDUNIQUE_DETAIL;
+  long long TEST_FILLUNIQUE;
+  long long TEST_READUNIQUE;
+  long long TEST_FILLUNIQUE_LIST;
+  long long TEST_FILLUNIQUEOBSERVABLES;
+  long long TEST_COUNT;
+  long long TEST_LOOKUP;
+  long long TEST_CHECKPHASE;
+
+  // --- From RLsymm.c ---
+  long long TEST_SYM;
+  long long TEST_SYMCOUPLING;
+
+  // --- From RLio.c and RLutil.c ---
+  long long TEST_WRITECROSS;
+  long long TEST_SPINFLIP;
+  long long TEST_INPUT;
+  long long TEST_ROTATION;
+  long long TEST_WRITEHMQ;
+
+  // --- From RLcross.c ---
+  long long TEST_APPLYSMP;
+  long long TEST_APPLYSZQ;
+  long long TEST_CROSS;
+
+  // --- From Diagonal.C ---
+  long long TEST_DIAGONALIZE;
+
+  // --- From regcc.cpp ---
+  long long TEST_MULTIMATCH;
+  long long TEST_FILEREAD;
+
+  // ============================================================
+  // Existing verbosity controls (already present in your struct)
+  // ============================================================
   long long VERBOSE_TIME_LV1;
   long long VERBOSE_TIME_LV2;
   long long VERBOSE;
+  long long FILEREAD_VERBOSE;
 };
-
-// #define FIND_MAG //Debugging required! Should only be used WITHOUT MSYM SJ 20/11/17
-// #define WRITE_MAGNETISATION //Should only be used WITHOUT MSYM,
-//                               Works only for MATRIX-mode, SJ 31/5/16
-#define MOTIVE // spin positions
-
-// Dimensions of problem
-#define NCOUP 400
-#define NCOUPSTR 10
-#define NSPINS 100
-#define NSYM 20
-#define NSYMADD 10
-#define NUNIQUE 4500
-#define MAXARRAYSIZE 200 // max number of entries on a given line in the input file
-#define NRING 100
-#define NRINGSTR 10
 
 // Highest possible state
 //  #define MAX_STATE ((((unsigned long) 1)<<(Nspins-1)) -1)
 // #else
 #define MAX_STATE ((unsigned long long)1 << (Nspins))
 // #endif
-
-// Set up size of buffer for sparse matrix read/write
-#define BUFFERSIZE 4194304
-
-#define USE_COMPLEX
 
 // Generated vectors with squared lengths below the following
 // cutoff are considered to be zero in Lanczos calculation because of numerical precision.
@@ -98,11 +170,7 @@ struct FLAGS
 #define SYMNUM(i, j) ((long long)(log((double)SymOp((long long)i, ((unsigned long long)1) << j) + 1E-6) / log((double)2)))
 
 // Deal with complex numbers
-#ifdef USE_COMPLEX
-// typedef std::complex<double> komplex;
 #define komplex std::complex<double>
-//  #define komplex _Complex double
-//  #define komplex std::complex<double>;
 #define kvector cvector
 #define freekvector freecvector
 #define kmatrix cmatrix
@@ -117,25 +185,6 @@ struct FLAGS
 #define eksp(a) exp(real(a)) * (cos(imag(a)) + I * sin(imag(a)))
 #define conj(a) (real(a) - I * imag(a))
 #define skrt(a) (sqrt(abs(a)) * (cos(Arg(a) / 2.0) + I * sin(Arg(a) / 2.0)))
-// #define skrt(a) (sqrt(real(a))*(cos(Arg(a)/2.0)+I*sin(Arg(a)/2.0) ) )
-
-#else
-#define komplex double
-#define skrt(a) sqrt(a)
-#define real(a) (a)
-#define imag(a) 0.0
-#define conj(a) (a)
-#define abs(a) fabs(a)
-#define eksp(a) exp(a)
-#define Arg(a) 0.0
-#define I 0.0
-#define zero 0.0
-#define sqrabs(a) a *a
-#define kvector dvector
-#define freekvector freedvector
-#define kmatrix dmatrix
-#define freekmatrix freedmatrix
-#endif
 
 // Various definitions
 #define SPIN_0_UP ((unsigned long long)1)
@@ -234,94 +283,4 @@ struct FLAGS
   }                                          \
   } /* while */
 
-// General debugging requests from RLexact.C
-
-// #define VERBOSE
-// #define VERBOSE_TIME_LV1
-// #define VERBOSE_TIME_LV2
-
-// Debugging output requests from RLexact.c
-// #define TEST_GS_SEARCH
-// #define TEST_ALLOCATE
-// #define MAIN_LOOP_MESSAGES
-
-// Debugging output requests from RLhamil.c
-// #define TEST_HAMILTON  /*this tests an old version of Hamilton, no longer in use*/
-// #define TEST_MAT_ELEM
-// #define TEST_HAM2
-// #define TEST_HAMZEE
-// #define TEST_FILLHAM
-
-// Debugging output requests from RLsparse.C
-// #define TEST_MAKESPARSE
-// #define TEST_APPLYSPARSE
-// #define TEST_APPLYSPARSE_READ
-// #define TEST_APPLYSPARSE_DEEP
-// #define DEBUG_APPLYSPARSE
-// #define TEST_HAM4
-
-// Debugging output requests from RLmatrix.c
-// #define MATRIX_MESSAGES
-// #define TEST_EIG
-// #define TEST_EVEC
-// #define TEST_MATRIXMAG
-// #define TEST_CALC_M
-// #define TEST_CALC_SZZQ
-
-// Debugging output requests from RLlanczos.c
-// #define TEST_SEED
-// #define TEST_EIGENVECTORS
-// #define TEST_FINDGROUND
-// #define TEST_STATES
-// #define TEST_ENERGIES
-// #define TEST_LANCZOS_VECTOR
-// #define LANCZOS_MESSAGES
-// #define VERBOSE_LANCZOS
-// #define TEST_FINDMAG
-// #define DEBUG_SEED // WARNING: May cause premature stopping of lanczos algorithm
-// #define DEBUG_LANCSTEP
-// #define TEST_LANCCROSS
-
-// Debugging output requests from RLtables.c
-// #define TEST_TABLES
-// #define TEST_INVERTMATRIX
-// #define TEST_OCC
-// #define TEST_ISUNIQUE
-// #define TEST_FINDUNIQUE
-// #define TEST_FINDUNIQUE_DETAIL
-// #define TEST_FILLUNIQUE
-// #define TEST_READUNIQUE
-// #define TEST_FILLUNIQUE_LIST
-// #define TEST_FILLUNIQUEOBSERVABLES
-// #define TEST_COUNT
-// #define TEST_LOOKUP
-// #define TEST_CHECKPHASE
-
-// Debugging output requests from RLsymm.c
-// #define TEST_SYM
-// #define TEST_SYMCOUPLING
-
-// Debugging output requests from RLio.c and RLutil.c
-// #define TEST_WRITECROSS
-// #define TEST_SPINFLIP
-// #define TEST_INPUT
-// #define TEST_ROTATION
-
-// Debugging output requests from RLcross.c
-// #define PRINT_STATES DOESN'T EXIST ANYMORE
-// #define PRINT_ENERGIES  DOESN'T EXIST ANYMORE
-// #define TEST_APPLYSMP
-// #define TEST_APPLYSZQ
-// #define TEST_CROSS
-
-// Debugging output requests from Diagonal.C
-// #define TEST_DIAGONALIZE
-
-// Debugging output requests from regcc.cpp
-// #define TEST_MULTIMATCH
-// #define TEST_FILEREAD
-//
-
-// Found in RLexact.h Previously named MEMORY_DEBUG, but not called anywhere.
-// #define TEST_MEMORY
 #endif

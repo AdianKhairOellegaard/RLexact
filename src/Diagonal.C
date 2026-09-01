@@ -21,23 +21,12 @@
 #include <stdio.h>
 #include <complex>
 #include <math.h>
-#include <RLexact.h>
+#include "RLexact.h"
 #include <cnr.h>
 #include "Functions.h"
 
 #define SIGN(a, b) ((b) < 0 ? -fabs(a) : fabs(a))
 
-extern void LogMessageChar(const char *);
-extern void LogMessageInt(long long);
-extern void LogMessageImag(const double, const double);
-extern void LogMessageCharDouble(const char *, double);
-extern void LogMessageCharInt(const char *, long long);
-extern void LogMessageChar3Vector(const char *, double, double, double);
-extern void fatalerror(const char *, long long);
-
-extern void time_stamp(time_t *, long long, const char *);
-
-long long htqli(double *, double *, long long, komplex **);
 void eigsrt(double *, komplex **, long long);
 
 void Diagonalize(komplex **H, long long num, double *ddin, struct FLAGS *input_flags) // Naming: ddin = energies, num = Nuniq_k
@@ -48,22 +37,23 @@ void Diagonalize(komplex **H, long long num, double *ddin, struct FLAGS *input_f
 	double *ee, *dd;
 	komplex *d, *e;
 
-#ifdef TEST_DIAGONALIZE
-	LogMessageCharInt("\nDiagonalization called with matrix of dimension ", num);
-	LogMessageChar("Hamiltonian=\n");
-	for (i = 1; i <= num; i++)
+	if (input_flags->TEST_DIAGONALIZE)
 	{
-		for (j = 1; j <= num; j++)
+		LogMessageCharInt("\nDiagonalization called with matrix of dimension ", num);
+		LogMessageChar("Hamiltonian=\n");
+		for (i = 1; i <= num; i++)
 		{
-			LogMessageCharDouble("( ", real(H[i][j]));
-			LogMessageCharDouble(" + i ", imag(H[i][j]));
-			LogMessageChar(" ) ");
+			for (j = 1; j <= num; j++)
+			{
+				LogMessageCharDouble("( ", real(H[i][j]));
+				LogMessageCharDouble(" + i ", imag(H[i][j]));
+				LogMessageChar(" ) ");
+			}
+			LogMessageChar("\n");
 		}
 		LogMessageChar("\n");
+		LogMessageChar("\n");
 	}
-	LogMessageChar("\n");
-	LogMessageChar("\n");
-#endif /* TEST_DIAGONALIZE */
 
 	/* Allocate */
 	e = kvector(1, num);
@@ -71,15 +61,16 @@ void Diagonalize(komplex **H, long long num, double *ddin, struct FLAGS *input_f
 	ee = dvector(1, num + 1); // meaning ee: 1 : num+1
 	dd = dvector(0, num + 1); // copy container for ddin=energies
 
-#ifdef TEST_DIAGONALIZE
-	LogMessageChar("After allocation\n");
-	for (int i = 1; i <= num; i++)
+	if (input_flags->TEST_DIAGONALIZE)
 	{
-		LogMessageCharDouble("dd[i] =", dd[i]);
-		LogMessageCharDouble(",ee[i+1] =", ee[i]);
-		LogMessageChar("\n");
+		LogMessageChar("After allocation\n");
+		for (int i = 1; i <= num; i++)
+		{
+			LogMessageCharDouble("dd[i] =", dd[i]);
+			LogMessageCharDouble(",ee[i+1] =", ee[i]);
+			LogMessageChar("\n");
+		}
 	}
-#endif
 
 	/* Move pointers to change indexation */
 	// H--;
@@ -90,42 +81,43 @@ void Diagonalize(komplex **H, long long num, double *ddin, struct FLAGS *input_f
 	}
 
 	dd = dd - 1;
-
-#ifdef TEST_DIAGONALIZE
-	LogMessageChar("After dd=ddin\n");
-	for (int i = 1; i <= num + 1; i++)
+	if (input_flags->TEST_DIAGONALIZE)
 	{
-		LogMessageCharInt("i =", i);
-		LogMessageCharDouble(", dd[i] =", dd[i]);
-		LogMessageCharDouble(",ee[i] =", ee[i]);
-		LogMessageChar("\n");
+		LogMessageChar("After dd=ddin\n");
+		for (int i = 1; i <= num + 1; i++)
+		{
+			LogMessageCharInt("i =", i);
+			LogMessageCharDouble(", dd[i] =", dd[i]);
+			LogMessageCharDouble(",ee[i] =", ee[i]);
+			LogMessageChar("\n");
+		}
 	}
-#endif
 
-/* TriDiagonalize matrix */
-#ifdef VERBOSE_TIME_LV1
-	LogMessageChar("\n");
-	time_stamp(&time_single, START, "Tridiagonalizing matrix");
-#endif /* VERBOSE_TIME_LV1*/
+	/* TriDiagonalize matrix */
+	if (input_flags->VERBOSE_TIME_LV1)
+	{
+		LogMessageChar("\n");
+		time_stamp(&time_single, START, "Tridiagonalizing matrix");
+	}
 
 	htred2(H, num, d, e, input_flags);
 
-#ifdef TEST_DIAGONALIZE
-	LogMessageChar("After htred2\n");
-	for (int i = 0; i <= num + 1; i++)
+	if (input_flags->TEST_DIAGONALIZE)
 	{
-		LogMessageCharInt("i =", i);
-		LogMessageCharDouble(", d[i] =", real(d[i]));
-		LogMessageCharDouble(" + i", imag(d[i]));
-		LogMessageCharDouble(",e [i] =", real(e[i]));
-		LogMessageCharDouble(" + i", imag(e[i]));
-		LogMessageChar("\n");
+		LogMessageChar("After htred2\n");
+		for (int i = 0; i <= num + 1; i++)
+		{
+			LogMessageCharInt("i =", i);
+			LogMessageCharDouble(", d[i] =", real(d[i]));
+			LogMessageCharDouble(" + i", imag(d[i]));
+			LogMessageCharDouble(",e [i] =", real(e[i]));
+			LogMessageCharDouble(" + i", imag(e[i]));
+			LogMessageChar("\n");
+		}
 	}
-#endif
 
-#ifdef VERBOSE_TIME_LV1
-	time_stamp(&time_single, STOP, "");
-#endif /* VERBOSE_TIME_LV1*/
+	if (input_flags->VERBOSE_TIME_LV1)
+		time_stamp(&time_single, STOP, "");
 
 	ee[1] = 0;
 	for (i = 1; i <= num; i++)
@@ -133,94 +125,94 @@ void Diagonalize(komplex **H, long long num, double *ddin, struct FLAGS *input_f
 		ee[i + 1] = abs(e[i]);
 		dd[i] = real(d[i]);
 
-#ifdef TEST_DIAGONALIZE
-		LogMessageCharInt("i =", i);
-		LogMessageCharDouble(", dd[i] =", dd[i]);
-		LogMessageCharDouble(",ee[i] =", ee[i]);
-		LogMessageChar("\n");
-
-#endif /* TEST_DIAGONALIZE */
-	}
-
-#ifdef TEST_DIAGONALIZE
-	LogMessageChar("\n\n Tridiag hamil= \n ");
-	for (i = 1; i <= num; i++)
-	{
-		for (j = 1; j <= num; j++)
+		if (input_flags->TEST_DIAGONALIZE)
 		{
-			if (j == i)
-			{
-				LogMessageCharDouble("( ", dd[i]);
-				LogMessageChar(" ) ");
-			}
-			else if (j - 1 == i)
-			{
-				LogMessageCharDouble("( ", ee[i + 1]);
-				LogMessageChar(" ) ");
-			}
-			else if (j == i - 1)
-			{
-				LogMessageCharDouble("( ", ee[j + 1]);
-				LogMessageChar(" ) ");
-			}
-			else
-			{
-				LogMessageCharDouble("( ", real(zero));
-				LogMessageChar(" ) ");
-			}
+			LogMessageCharInt("i =", i);
+			LogMessageCharDouble(", dd[i] =", dd[i]);
+			LogMessageCharDouble(",ee[i] =", ee[i]);
+			LogMessageChar("\n");
 		}
-		LogMessageChar("\n");
 	}
 
-	for (i = 1; i <= num; i++)
+	if (input_flags->TEST_DIAGONALIZE)
 	{
-		for (j = 1; j <= num; j++)
+		LogMessageChar("\n\n Tridiag hamil= \n ");
+		for (i = 1; i <= num; i++)
 		{
-			LogMessageCharDouble("( ", real(H[i][j]));
-			LogMessageCharDouble(" + i ", imag(H[i][j]));
-			LogMessageChar(" ) ");
+			for (j = 1; j <= num; j++)
+			{
+				if (j == i)
+				{
+					LogMessageCharDouble("( ", dd[i]);
+					LogMessageChar(" ) ");
+				}
+				else if (j - 1 == i)
+				{
+					LogMessageCharDouble("( ", ee[i + 1]);
+					LogMessageChar(" ) ");
+				}
+				else if (j == i - 1)
+				{
+					LogMessageCharDouble("( ", ee[j + 1]);
+					LogMessageChar(" ) ");
+				}
+				else
+				{
+					LogMessageCharDouble("( ", real(zero));
+					LogMessageChar(" ) ");
+				}
+			}
+			LogMessageChar("\n");
 		}
-		LogMessageChar("\n");
+
+		for (i = 1; i <= num; i++)
+		{
+			for (j = 1; j <= num; j++)
+			{
+				LogMessageCharDouble("( ", real(H[i][j]));
+				LogMessageCharDouble(" + i ", imag(H[i][j]));
+				LogMessageChar(" ) ");
+			}
+			LogMessageChar("\n");
+		}
 	}
-#endif /* TEST_DIAGONALIZE */
 
 	// Diagonalize:
 
-#ifdef VERBOSE_TIME_LV1
-	time_stamp(&time_single, START, "Diagonalizing tridiagonal matrix");
-#endif /* VERBOSE_TIME_LV1*/
+	if (input_flags->VERBOSE_TIME_LV1)
+		time_stamp(&time_single, START, "Diagonalizing tridiagonal matrix");
 
 	htqli(dd, ee, num, H);
 
-#ifdef TEST_DIAGONALIZE
-	LogMessageChar("After htqli:\n");
-	for (int i = 1; i <= num + 1; i++)
+	if (input_flags->TEST_DIAGONALIZE)
 	{
-		LogMessageCharInt("i =", i);
-		LogMessageCharDouble(", dd[i] =", dd[i]);
-		LogMessageCharDouble(",ee[i] =", ee[i]);
-		LogMessageChar("\n");
-	}
-#endif
-
-#ifdef VERBOSE_TIME_LV1
-	time_stamp(&time_single, STOP, "");
-#endif /* VERBOSE_TIME_LV1*/
-
-#ifdef TEST_DIAGONALIZE
-	LogMessageChar("Diagonalization done, resulting eigenvectors\n");
-	for (i = 1; i <= num; i++)
-	{
-		for (j = 1; j <= num; j++)
+		LogMessageChar("After htqli:\n");
+		for (int i = 1; i <= num + 1; i++)
 		{
-			LogMessageCharDouble(" ( ", real(H[i][j]));
-			LogMessageCharDouble(" + i ", imag(H[i][j]));
-			LogMessageChar(" ) ");
+			LogMessageCharInt("i =", i);
+			LogMessageCharDouble(", dd[i] =", dd[i]);
+			LogMessageCharDouble(",ee[i] =", ee[i]);
+			LogMessageChar("\n");
 		}
-		LogMessageChar("\n");
 	}
-#endif /* TEST_DIAGONALIZE */
 
+	if (input_flags->VERBOSE_TIME_LV1)
+		time_stamp(&time_single, STOP, "");
+
+	if (input_flags->TEST_DIAGONALIZE)
+	{
+		LogMessageChar("Diagonalization done, resulting eigenvectors\n");
+		for (i = 1; i <= num; i++)
+		{
+			for (j = 1; j <= num; j++)
+			{
+				LogMessageCharDouble(" ( ", real(H[i][j]));
+				LogMessageCharDouble(" + i ", imag(H[i][j]));
+				LogMessageChar(" ) ");
+			}
+			LogMessageChar("\n");
+		}
+	}
 	/* Sort eigenvalules */
 	/*  eigsrt(dd,H,num); */
 
@@ -232,9 +224,8 @@ void Diagonalize(komplex **H, long long num, double *ddin, struct FLAGS *input_f
 	/* Reset pointers */
 	dd = dd + 1;
 
-#ifdef TEST_DIAGONALIZE
-	LogMessageChar("\nBefore deallocation\n");
-#endif
+	if (input_flags->TEST_DIAGONALIZE)
+		LogMessageChar("\nBefore deallocation\n");
 
 	freekvector(e, 1, num);
 	freekvector(d, 1, num);
@@ -266,19 +257,20 @@ void htred2(komplex **a, long long num, komplex *d, komplex *e, struct FLAGS *in
 	// d diagonal elements
 	p = kvector(1, num);
 
-#ifdef TEST_DIAGONALIZE
-	LogMessageChar("\n\nInside Diagonalization htread2. H=\n ");
-	for (i = 1; i <= num; i++)
+	if (input_flags->TEST_DIAGONALIZE)
 	{
-		for (j = 1; j <= num; j++)
+		LogMessageChar("\n\nInside Diagonalization htread2. H=\n ");
+		for (i = 1; i <= num; i++)
 		{
-			LogMessageCharDouble("( ", real(a[i][j]));
-			LogMessageCharDouble(" + i ", imag(a[i][j]));
-			LogMessageChar(" ) ");
+			for (j = 1; j <= num; j++)
+			{
+				LogMessageCharDouble("( ", real(a[i][j]));
+				LogMessageCharDouble(" + i ", imag(a[i][j]));
+				LogMessageChar(" ) ");
+			}
+			LogMessageChar("\n");
 		}
-		LogMessageChar("\n");
 	}
-#endif /* TEST_DIAGONALIZE */
 
 	for (i = dim; i >= 2; i--) /* start from the lower right corner of a */
 	{
