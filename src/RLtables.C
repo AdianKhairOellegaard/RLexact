@@ -467,7 +467,7 @@ unsigned long long FillUnique(long long twom, int CountOnly, struct FLAGS *input
   Nu2 = ((unsigned long long)1) << (long long)ceil(log(basis_c + 1) / log(2)); // find smallest Nu2 = 2^^j > n
 
 #ifdef TEST_FILLUNIQUE
-  LogMessageCharInt("\n Number of uniques found: ", Nunique);
+  LogMessageCharInt("\n Number of uniques found: ", basis_c);
   LogMessageChar("End of FillUnique  reached. \n");
 #endif
 
