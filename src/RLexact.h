@@ -31,6 +31,7 @@ struct FLAGS
   long long motive;          // DLC TODO: We need a description of the MOTIVE. Maybe
   long long find_mag;        // DLC TODO: Needs description. Debugging required! Should only be used WITHOUT MSYM SJ 20/11/17
   long long cross;           // DLC: I have literally no idea what this is
+  long long find_expect;     // AKOE: Find expectation values of the local spin operators 
 
   // OUTPUT SPECIFIERS
   long long write_energies;
@@ -48,6 +49,7 @@ struct FLAGS
   long long TEST_GS_SEARCH;
   long long TEST_ALLOCATE;
   long long MAIN_LOOP_MESSAGES;
+  long long TEST_EXPECT;
 
   // --- From RLhamil.c ---
   long long TEST_HAMILTON; // only in use in hamil.dipole

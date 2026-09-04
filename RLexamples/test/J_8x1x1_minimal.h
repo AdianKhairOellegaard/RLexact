@@ -3,6 +3,8 @@ Zero_vec_length 0.001
 Mode 0
 Unimode 0
 Mode 0
+Find_expect 1
+TEST_EXPECT 1
 M start -1
 M end 4
 Number of spins 8

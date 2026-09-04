@@ -69,6 +69,13 @@ double lengthofvector(komplex *);
 void ApplySmp(long long *, long long, komplex *, struct FLAGS *);
 
 // =============================================================================
+// Functions in RLexpect
+// =============================================================================
+int ApplySz(int, unsigned long long *);
+int ApplySp(int, unsigned long long *);
+int ApplySm(int, unsigned long long *);
+
+// =============================================================================
 // Functions in RLsparse
 // =============================================================================
 void MakeSparse(struct FLAGS *);

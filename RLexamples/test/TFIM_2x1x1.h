@@ -4,6 +4,8 @@ Mode 0
 Unimode 0
 M_Symmetry 0
 Find_cross 1
+Find_expect 1
+TEST_EXPECT 1
 H start 0
 H end 1
 H step 0.05

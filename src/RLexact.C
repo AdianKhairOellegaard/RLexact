@@ -797,6 +797,20 @@ void Solve_Lanczos(struct FLAGS *input_flags)
     if (input_flags->VERBOSE_TIME_LV1)
       time_stamp(&time_single, STOP, "\nCross sections ");
   }
+  //Expectation value generation
+  if (input_flags->find_expect)
+  {
+    if (mode == MODEN)
+    {
+      if (input_flags->TEST_EXPECT)
+      {
+        unsigned long long testing = ((unsigned long long)1) << 7;
+        int val = ApplySp(6,&testing);
+        fprintf(stdout," %d ", val);
+        fprintf(stdout," %llu ", testing);
+      }
+    }
+  }
 
   return;
 }

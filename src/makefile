@@ -1,4 +1,4 @@
-OBJECTS = RLexact.o RLio.o RLtables.o RLhamil.o RLsymm.o Diagonal.o nr.o RLutil.o  RLcross.o RLlancz.o RLmatrix.o RLsparse.o regc.o RLhamil.dipole.o
+OBJECTS = RLexact.o RLio.o RLtables.o RLhamil.o RLsymm.o Diagonal.o nr.o RLutil.o  RLcross.o RLexpect.o RLlancz.o RLmatrix.o RLsparse.o regc.o RLhamil.dipole.o
 LIBS = -lm 
 FLAGS =  -I. -I/usr/include/g++-3 -O0 -std=c++11 -gdwarf-2 -ansi -g -Wno-deprecated-declarations#-fsanitize=address,undefined -fno-omit-frame-pointer
 OPTFLAGS = -I. -I/usr/include/g++-3 -O0 -gdwarf-2 -ansi -std=c++11 -Wno-deprecated-declarations
@@ -48,6 +48,9 @@ nr.o:		RLexact.h Functions.h cnr.h nr.C
 
 RLcross.o:	RLexact.h Functions.h RLcross.C
 		$(COMPILER) $(OPTFLAGS) -c RLcross.C
+
+RLexpect.o:	RLexact.h Functions.h RLexpect.C
+		$(COMPILER) $(OPTFLAGS) -c RLexpect.C
 
 RLsparse.o:	RLexact.h Functions.h RLsparse.C
 		$(COMPILER) $(OPTFLAGS) -c RLsparse.C

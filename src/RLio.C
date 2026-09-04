@@ -149,7 +149,7 @@ long long intro(struct FLAGS *input_flags)
     OutMessageChar(" Observables:");
     if (input_flags->find_mag)
       OutMessageChar(" Magnetization,");
-    if (input_flags->cross)
+    if (input_flags->find_cross)
     {
       OutMessageChar(" S^zz(q,w),");
       if (!input_flags->m_sym)
@@ -159,6 +159,10 @@ long long intro(struct FLAGS *input_flags)
         else
           OutMessageChar(" S^+-(q,w), S^-+(q,w),");
       }
+    }
+    if (input_flags->find_expect)
+    {
+      OutMessageChar(" Local spin expectation values ");
     }
     OutMessageChar(" Energy.\n");
     OutMessageChar(" For more information, see the manual.\n");
@@ -322,11 +326,14 @@ void ReadInputFlags(char *filename, struct FLAGS *input_flags)
   input_flags->find_cross = 1;
   input_flags->find_cross_pm = 0;
   input_flags->find_mag = 0;
+  input_flags->find_expect = 0;
 
   input_flags->write_energies = 1; // Output energies and states as default
   input_flags->write_states = 1;
   input_flags->motive = 1;
   input_flags->random_number_seed = 0;
+
+  input_flags->TEST_EXPECT = 0;
 
   matchlines_wrapper(filedata, "Use_Lanczos", &input_flags->use_lanczos, true, input_flags);
   matchlines_wrapper(filedata, "Use_Exact_Matrix", &input_flags->use_exact_matrix, true, input_flags);
@@ -337,6 +344,7 @@ void ReadInputFlags(char *filename, struct FLAGS *input_flags)
   matchlines_wrapper(filedata, "Find_cross", &input_flags->find_cross, true, input_flags);
   matchlines_wrapper(filedata, "Find_cross_pm", &input_flags->find_cross_pm, true, input_flags);
   matchlines_wrapper(filedata, "Find_magnetisation", &input_flags->find_mag, true, input_flags);
+  matchlines_wrapper(filedata, "Find_expect", &input_flags->find_expect, true, input_flags);
 
   matchlines_wrapper(filedata, "Write_Energies", &input_flags->write_energies, true, input_flags);
   matchlines_wrapper(filedata, "Write_States", &input_flags->write_states, true, input_flags);
@@ -347,6 +355,7 @@ void ReadInputFlags(char *filename, struct FLAGS *input_flags)
   matchlines_wrapper(filedata, "motive", &input_flags->motive, true, input_flags);
 
   matchlines_wrapper(filedata, "VERBOSE", &input_flags->VERBOSE, true, input_flags);
+  matchlines_wrapper(filedata, "TEST_EXPECT", &input_flags->TEST_EXPECT, true, input_flags);
 }
 
 /* ----------------------------------------------------------------------- */
