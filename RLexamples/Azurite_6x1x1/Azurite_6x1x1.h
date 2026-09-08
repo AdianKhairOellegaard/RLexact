@@ -5,6 +5,8 @@ Ritz_conv 0.000000001 //Lanczos precision
 random_number_seed 42 //Number that seeds the random number generator. Should be decommented in real life!
 Mode 0 //Perl magic for old cluster routines
 Unimode 0
+find_expect 1
+TEST_EXPECT 1
 Number of spins 18
 Number of spins in unit cell 3
 // Coordinates of each spin in the unit cell 

@@ -26,7 +26,7 @@
 
 
 /* Global variables defined in RLexact.c */
-extern long long Nspins, Ncoup, Nsym, Nsymvalue[NSYM], Nsymadd;
+extern long long Nspins, Ncoup, Nsym, Nsymvalue[NSYM], Nsymadd, Nsymops;
 extern long long hamil_coup[NCOUP][2], symlist[NSYM];
 extern long long **symadd;
 extern double Jxy[NCOUP], Jzz[NCOUP], Janis[NCOUP];
@@ -230,9 +230,12 @@ void InitSym(struct FLAGS *input_flags)
   }
 
   Nsym += Nsymadd;
+  Nsymops = (long long)1;
   for (sym = 0; sym < Nsym; sym++)
   {
     Nsymvalue[sym] = Nsv[symlist[sym]];
+    Nsymops *= (long long)Nsymvalue[sym];
+
     if (input_flags->TEST_SYM)
     {
       LogMessageChar3Vector("sym,symlist,Nsv : ", sym, symlist[sym], Nsv[symlist[sym]]);

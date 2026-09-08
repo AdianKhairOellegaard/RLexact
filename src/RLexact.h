@@ -219,6 +219,8 @@ struct FLAGS
 #define X 0
 #define Y 1
 #define Z 2
+#define PLUS 0
+#define MINUS 1
 // #define REAL 0
 // #define IMAG 1 //Not used and clashed with OpenMPI
 #define NORMAL 0
@@ -236,6 +238,21 @@ struct FLAGS
 #define UNIMODEN 0 // Normal mode
 #define UNIMODEW 1 // Write unique
 #define UNIMODER 2 // Read unique
+
+/* Expectation value data structures */
+// Structure to hold a canonical representative
+typedef struct {
+    int p;
+    int alpha;
+} CanonicalRep;
+
+// The flat orbit table structure
+typedef struct {
+    int target_site;
+    int target_alpha;
+    komplex lambda;
+} OrbitTable;
+
 
 // Program pieces
 #define TLOOP_BEGIN                         \

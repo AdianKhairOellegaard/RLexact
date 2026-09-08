@@ -99,6 +99,8 @@ long long Nuniq_k;
 /* Number of allowed unique states for given value of k[] */
 long long Nsymvalue[NSYM];
 /* Number of different symmetry values for each symmetry (index) */
+long long Nsymops;
+/* Total number of symmetry operator combinations */
 long long *Nocc, *Nocc_0;
 /*Number of a times a unique returns to itself under all translations through the system; Nocc = Nspins/Periodicity */
 unsigned long long *unique;
@@ -136,6 +138,10 @@ long long unimode;    /* the "unique mode" of the program: 0 is normal, 1 is fin
 int spinflip_present; // This is 1 is spinflip is present and 0 if it is not.
 int spinflip_number;  /* If spin flip symmetry is present this has a value equal the corresponding index in the symmetry list; otherwise -1 */
 int spinflip_GSvalue; /* If spin flip symmetry is present, this is its value in the Ground State */
+/* Orbit table, dynamically allocated */
+CanonicalRep *canonical;
+OrbitTable *otable;
+int numcanonical;
 
 /* The input filename */
 char *infile_name;
@@ -318,6 +324,23 @@ int main(int argc, char *argv[])
   if (input_flags.VERBOSE_TIME_LV1)
     time_stamp(&time_single, STOP, "Longest_Matrix allocated ");
 
+  //AKOE: Builds orbits for expectations values.
+  if (input_flags.find_expect)
+  {
+    if (mode == MODEN && rank == 0)
+    {
+      BuildOrbitTable(otable, canonical, &input_flags);
+      if (input_flags.TEST_EXPECT)
+      {
+        fprintf(stdout, "Canonical representatives (%d):\n", numcanonical);
+        for (int i = 0; i < numcanonical; i++)
+        {
+          fprintf(stdout, "  p = %d, alpha = %d\n",
+                  canonical[i].p, canonical[i].alpha);
+        }
+      }
+    }
+  }
   if (input_flags.m_sym)
   {
     // LogMessageChar("M_SYM encountered \n");
@@ -800,14 +823,20 @@ void Solve_Lanczos(struct FLAGS *input_flags)
   //Expectation value generation
   if (input_flags->find_expect)
   {
-    if (mode == MODEN)
+    if (mode == MODEN && rank == 0)
     {
+      //BuildCycle(q_gs, input_flags);
+
       if (input_flags->TEST_EXPECT)
       {
-        unsigned long long testing = ((unsigned long long)1) << 7;
-        int val = ApplySp(6,&testing);
-        fprintf(stdout," %d ", val);
-        fprintf(stdout," %llu ", testing);
+        if (input_flags->m_sym)
+        fprintf(stdout," %lld ", twom/2);
+        if (!input_flags->m_sym)
+        fprintf(stdout," %lf ", h);
+        //unsigned long long testing = ((unsigned long long)1) << 1;
+        //int val = ApplySp(1,&testing);
+        //fprintf(stdout," %d ", val);
+        //fprintf(stdout," %llu ", testing);
       }
     }
   }
@@ -992,6 +1021,12 @@ void allocate(struct FLAGS *input_flags)
     if (input_flags->find_cross)
       cross = dvector(1, Nunique);
   }
+  
+  if (input_flags->find_expect)
+    {
+      canonical = (CanonicalRep*)malloc(Nspins * 3 * sizeof(CanonicalRep));
+      otable = (OrbitTable*)malloc(Nspins * 3 * Nsymops * sizeof(OrbitTable));
+    }
 
   return;
 }
@@ -1047,5 +1082,10 @@ void deallocate(struct FLAGS *input_flags)
       free(spin_positions[i]);
     free(spin_positions);
   }
+  if (input_flags->find_expect)
+    {
+      free(otable);
+      free(canonical);
+    }
   return;
 }

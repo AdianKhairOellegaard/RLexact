@@ -71,6 +71,10 @@ void ApplySmp(long long *, long long, komplex *, struct FLAGS *);
 // =============================================================================
 // Functions in RLexpect
 // =============================================================================
+void BuildOrbitTable(OrbitTable *, CanonicalRep *, struct FLAGS *);
+inline long long get_orbit_idx(int, int, long long);
+inline void store_orbit_element(OrbitTable *, int, int, long long, int, int, komplex);
+inline const OrbitTable* get_orbit_element(const OrbitTable *, int, int, long long);
 int ApplySz(int, unsigned long long *);
 int ApplySp(int, unsigned long long *);
 int ApplySm(int, unsigned long long *);
