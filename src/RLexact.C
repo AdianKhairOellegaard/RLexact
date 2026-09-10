@@ -141,8 +141,18 @@ int spinflip_GSvalue; /* If spin flip symmetry is present, this is its value in 
 /* Orbit table, dynamically allocated */
 CanonicalRep *canonical;
 OrbitTable *otable;
+/* Orbit table and expectation value variables */
 int numcanonical;
-
+komplex expectation_valuep;
+komplex expectation_valuem;
+komplex expectation_valuez;
+komplex expectation_valuepp;
+komplex expectation_valuepm;
+komplex expectation_valuezz;
+komplex expectation_valuemm;
+komplex expectation_valuemp;
+komplex expectation_valuexx;
+komplex expectation_valueyy;
 /* The input filename */
 char *infile_name;
 bool name_on_commandline = false;
@@ -402,6 +412,52 @@ int main(int argc, char *argv[])
         }
       }
     }
+    if ((rank == 0) && input_flags.find_expect && (mode == MODEN))
+    {
+      BuildCycle(q_gs, &input_flags);
+      long long m_gs = 0;
+      for (long long i = 0; (i < Nunique); i++)
+      {
+        if (abs(gs[i]) > SMALL_NUMBER)
+        {
+          m_gs = 2 * Count(unique[i], &input_flags) - Nspins;
+          break;
+        }
+      }
+      fprintf(stdout,"Finding expectation value in case of m-symmetry (m = %lf) with p = 0, alpha = z,", m_gs/2.0);
+      if (input_flags.TEST_EXPECT)
+          {
+          fprintf(stdout, "q_gs = (");
+          for (long long sym = 0; sym < Nsym; sym++)
+            fprintf(stdout, "%lld ", q_gs[sym]);
+          fprintf(stdout, ")\n");
+          fprintf(stdout, "Ground state vector:\n");
+          for (long long i = 0; i < Nunique; i++)
+          {
+            double phase = Arg(gs[i]);
+            if (phase < 0)
+              phase += 2 * PI;
+            fprintf(stdout, "  gs[%lld] = %lf, phase = %lf (unique = %llu)\n", i, abs(gs[i]), phase, unique[i]);
+          }
+          expectation_valuez = expect_value(ApplySz, 0, &input_flags);
+          fprintf(stdout,"<S_0^z> = %lf + %lf I\n\n", real(expectation_valuez), imag(expectation_valuez));
+          for (int i = 0; i < Nspins; i++)
+          {
+            for (int j = (i == 0 ? 0 : i + 1); j < Nspins; j++)
+          {  
+            expectation_valuepm = expect_value2(ApplySm, j, ApplySp, i, &input_flags);
+            expectation_valuemp = expect_value2(ApplySp, j, ApplySm, i, &input_flags);
+
+            expectation_valuexx = (expectation_valuepm + expectation_valuemp) / 4.0;
+            expectation_valueyy = (expectation_valuepm + expectation_valuemp) / 4.0;
+            expectation_valuezz = expect_value2(ApplySz, i, ApplySz, j, &input_flags);
+            fprintf(stdout,"\n<S_%d^x S_%d^x> = %lf + %lf I\n", i, j, real(expectation_valuexx), imag(expectation_valuexx)); 
+            fprintf(stdout,"\n<S_%d^y S_%d^y> = %lf + %lf I\n", i, j, real(expectation_valueyy), imag(expectation_valueyy));
+            fprintf(stdout,"\n<S_%d^z S_%d^z> = %lf + %lf I\n", i, j, real(expectation_valuezz), imag(expectation_valuezz) );
+          }
+          }
+          }
+    }
   }
   else if (!input_flags.m_sym)
   {
@@ -458,7 +514,50 @@ int main(int argc, char *argv[])
           Solve_Matrix(&input_flags);
         else if (input_flags.use_lanczos)
           Solve_Lanczos(&input_flags);
+        if ((rank == 0) && input_flags.find_expect && (mode == MODEN))
+        {
+          fprintf(stdout,"Finding expectation value in case of an external magnetic field h = %lf. Ground state energy %lf: \n", h, gs_energy); 
+          BuildCycle(q_gs, &input_flags);
+          if (input_flags.TEST_EXPECT)
+          {
+          fprintf(stdout, "q_gs = (");
+          for (long long sym = 0; sym < Nsym; sym++)
+            fprintf(stdout, "%lld ", q_gs[sym]);
+          fprintf(stdout, ")\n");
+          fprintf(stdout, "Ground state vector:\n");
+          for (long long i = 0; i < Nunique; i++)
+          {
+            double phase = Arg(gs[i]);
+            if (phase < 0)
+              phase += 2 * PI;
+            fprintf(stdout, "  gs[%lld] = %lf, phase = %lf (unique = %llu)\n", i, abs(gs[i]), phase, unique[i]);
+          }
+          expectation_valuep = expect_value(ApplySp, 0, &input_flags);
+          expectation_valuem = expect_value(ApplySm, 0, &input_flags);
+          expectation_valuez = expect_value(ApplySz, 0, &input_flags);
+          fprintf(stdout,"\n<S_0^x> = %lf + %lf I\n", (real(expectation_valuep)+real(expectation_valuem))/2, (imag(expectation_valuep)+imag(expectation_valuem))/2); 
+          fprintf(stdout,"<S_0^y> = %lf + %lf I\n", (imag(expectation_valuep)-imag(expectation_valuem))/2, -(real(expectation_valuep)-real(expectation_valuem))/2); 
+          fprintf(stdout,"<S_0^z> = %lf + %lf I\n\n", real(expectation_valuez), imag(expectation_valuez));
 
+          for (int i = 0; i < Nspins; i++)
+          {
+            for (int j = (i == 0 ? 0 : i + 1); j < Nspins; j++)
+          {  
+            expectation_valuepp = expect_value2(ApplySp, i, ApplySp, j, &input_flags);
+            expectation_valuemm = expect_value2(ApplySm, i, ApplySm, j, &input_flags);
+            expectation_valuepm = expect_value2(ApplySm, i, ApplySp, j, &input_flags);
+            expectation_valuemp = expect_value2(ApplySp, i, ApplySm, j, &input_flags);
+
+            expectation_valuexx = (expectation_valuepp + expectation_valuepm + expectation_valuemp + expectation_valuemm) / 4.0;
+            expectation_valueyy = -(expectation_valuepp - expectation_valuepm - expectation_valuemp + expectation_valuemm) / 4.0;
+            expectation_valuezz = expect_value2(ApplySz, i, ApplySz, j, &input_flags);
+            fprintf(stdout,"\n<S_%d^x S_%d^x> = %lf + %lf I\n", j, i, real(expectation_valuexx), imag(expectation_valuexx)); 
+            fprintf(stdout,"\n<S_%d^y S_%d^y> = %lf + %lf I\n", j, i, real(expectation_valueyy), imag(expectation_valueyy));
+            fprintf(stdout,"\n<S_%d^z S_%d^z> = %lf + %lf I\n", j, i, real(expectation_valuezz), imag(expectation_valuezz) );
+          }
+          }
+          }
+        }
         if (input_flags.VERBOSE_TIME_LV1)
         {
           time_stamp(&time_single0, STOP, "one m/h ");
@@ -820,27 +919,6 @@ void Solve_Lanczos(struct FLAGS *input_flags)
     if (input_flags->VERBOSE_TIME_LV1)
       time_stamp(&time_single, STOP, "\nCross sections ");
   }
-  //Expectation value generation
-  if (input_flags->find_expect)
-  {
-    if (mode == MODEN && rank == 0)
-    {
-      //BuildCycle(q_gs, input_flags);
-
-      if (input_flags->TEST_EXPECT)
-      {
-        if (input_flags->m_sym)
-        fprintf(stdout," %lld ", twom/2);
-        if (!input_flags->m_sym)
-        fprintf(stdout," %lf ", h);
-        //unsigned long long testing = ((unsigned long long)1) << 1;
-        //int val = ApplySp(1,&testing);
-        //fprintf(stdout," %d ", val);
-        //fprintf(stdout," %llu ", testing);
-      }
-    }
-  }
-
   return;
 }
 

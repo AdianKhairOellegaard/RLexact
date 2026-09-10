@@ -94,7 +94,7 @@ void Hamil_Zeeman(unsigned long long bitmap, unsigned long long *new_state, long
         if (s0 == 0) // S+, spin can be raised
         {
           *new_state = (bitmap | mask0);
-          *J = -h / 2 * field[0] - (h / 2 * I) * field[1];
+          *J = -h / 2 * field[0] - (h / 2 * field[1]) / I; //AKOE: 1/I = -I, giving Hy its correct sign
           if (input_flags->TEST_HAMZEE)
           {
             LogMessageCharInt("Hamzee: S+: From state ", bitmap);
@@ -107,7 +107,7 @@ void Hamil_Zeeman(unsigned long long bitmap, unsigned long long *new_state, long
         else // then s0==1, S-, spin can be lowered
         {
           *new_state = (bitmap & ~(mask0));
-          *J = -h / 2 * field[0] + (h / 2 * I) * field[1];
+          *J = -h / 2 * field[0] + (h / 2 * field[1]) / I; //AKOE: 1/I = -I, giving Hy its correct sign
 
           if (input_flags->TEST_HAMZEE)
           {

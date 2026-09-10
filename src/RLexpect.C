@@ -19,14 +19,17 @@
 /* Functions defined in this file */
 
 /* Global variables defined in RLexact.c */
-extern long long Nspins, Nsymops, Nsym, Nsymvalue[NSYM];
-extern long long *Nocc;
+extern long long Nspins, Nsymops, Nsym, Nunique, Nsymvalue[NSYM];
+extern long long *Nocc, q_gs[NSYM];
+extern unsigned long long *unique;
 extern int numcanonical;
+extern komplex expectation_value;
+extern komplex *gs;
 extern CanonicalRep *canonical;
 extern OrbitTable *otable;
+extern double cosine[], sine[], sqroot[];
 /* Regional variables defined in this file */
-unsigned long long maskN;
-unsigned long long maskp;
+unsigned long long maskN, maskp, outvec;
 /* Builds symmetry orbits used to simplify local expectation value calculations */
 void BuildOrbitTable(OrbitTable *otable, CanonicalRep *canonical, struct FLAGS *input_flags)
 {
@@ -117,17 +120,110 @@ inline const OrbitTable* get_orbit_element(const OrbitTable* table, int p, int a
     return &table[idx];
 }
 
-/* Expectation value function */
+/* Expectation value function for any local operator that mutates bitmaps cleanly <gs| Op_p |gs>*/
+komplex expect_value(double (*Op)(int, unsigned long long*), int p, struct FLAGS *input_flags)
+{
+    long long symcom_count, sym = 0;
+    long long l;
+    double operation_value;
+    unsigned long long state, new_state, op_state, u;
+    int T[NSYM], d_T[NSYM];
+    komplex base_fac, fac, sum;
+    double phase;
+
+    sum = 0.0;
+    for (long long i = 0; i < Nunique; ++i)
+    {
+        if (abs(gs[i]) == 0)//(abs(gs[i]) < SMALL_NUMBER)
+            continue;
+        
+        state = unique[i];
+        base_fac = gs[i] / (sqroot[Nocc[i]] * Nsymops);
+        fac = 0;
+        TLOOP_BEGIN
+        op_state = new_state;
+        operation_value = Op(p, &op_state);
+        if (operation_value != 0)
+        {
+            u = FindUnique(op_state, d_T, input_flags);
+            l = LookUpU(u, input_flags);
+
+            if (abs(gs[l]) != 0)//(abs(gs[l]) >= SMALL_NUMBER)
+            {
+                phase = 0.0;
+                for (int j = 0; j < Nsym; ++j)
+                {
+                    phase += 1.0 * q_gs[j] * (d_T[j] - T[j]) / Nsymvalue[j];
+                }
+                fac += ((komplex)operation_value) * conj(gs[l]) * sqroot[Nocc[l]] * exp(2.0 * I * PI * phase);
+            }
+        }
+        TLOOP_END
+        sum += base_fac*fac;
+    }
+    return sum;
+}
+
+/* Expectation value of a product of two local operators: <gs| Op2_p2 Op1_p1 |gs> */
+komplex expect_value2(double (*Op1)(int, unsigned long long*), int p1,
+                      double (*Op2)(int, unsigned long long*), int p2,
+                      struct FLAGS *input_flags)
+{
+    long long symcom_count, sym = 0;
+    long long l;
+    double val1, val2, operation_value;
+    unsigned long long state, new_state, op_state, u;
+    int T[NSYM], d_T[NSYM];
+    komplex base_fac, fac, sum;
+    double phase;
+
+    sum = 0.0;
+    for (long long i = 0; i < Nunique; ++i)
+    {
+        if (abs(gs[i]) == 0)
+            continue;
+
+        state = unique[i];
+        base_fac = gs[i] / (sqroot[Nocc[i]] * Nsymops);
+        fac = 0;
+        TLOOP_BEGIN
+        op_state = new_state; // Ops mutate their bitmap argument; don't corrupt the TLOOP state
+        val1 = Op1(p1, &op_state);
+        if (val1 != 0)
+        {
+            val2 = Op2(p2, &op_state);
+            operation_value = val1 * val2;
+            if (operation_value != 0)
+            {
+                u = FindUnique(op_state, d_T, input_flags);
+                l = LookUpU(u, input_flags);
+
+                if (abs(gs[l]) != 0)
+                {
+                    phase = 0.0;
+                    for (int j = 0; j < Nsym; ++j)
+                    {
+                        phase += 1.0 * q_gs[j] * (d_T[j] - T[j]) / Nsymvalue[j];
+                    }
+                    fac += ((komplex)operation_value) * conj(gs[l]) * sqroot[Nocc[l]] * exp(2.0 * I * PI * phase);
+                }
+            }
+        }
+        TLOOP_END
+        sum += base_fac*fac;
+    }
+    return sum;
+}
 
 /* Local spin operation functions */
 
 //S^z_p operator function
-int ApplySz(int p, unsigned long long* bitmap)
+double ApplySz(int p, unsigned long long* bitmap)
 {
     if (p >= 0 && p < Nspins)
     {
         maskp = ((unsigned long long)1) << p;
-        int spin_value = 2 * ((*bitmap & maskp) != 0) - 1;
+        double spin_value = (2 * ((*bitmap & maskp) != 0) - 1) / 2.0;
         return spin_value;
     }
     else
@@ -138,7 +234,7 @@ int ApplySz(int p, unsigned long long* bitmap)
 }
 
 //S^+_p operator function
-int ApplySp(int p, unsigned long long* bitmap)
+double ApplySp(int p, unsigned long long* bitmap)
 {
     if (p >= 0 && p < Nspins)
     {
@@ -159,7 +255,7 @@ int ApplySp(int p, unsigned long long* bitmap)
 }
 
 //S^m_p operator function
-int ApplySm(int p, unsigned long long* bitmap)
+double ApplySm(int p, unsigned long long* bitmap)
 {
     if (p >= 0 && p < Nspins)
     {

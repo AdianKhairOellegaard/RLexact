@@ -75,9 +75,12 @@ void BuildOrbitTable(OrbitTable *, CanonicalRep *, struct FLAGS *);
 inline long long get_orbit_idx(int, int, long long);
 inline void store_orbit_element(OrbitTable *, int, int, long long, int, int, komplex);
 inline const OrbitTable* get_orbit_element(const OrbitTable *, int, int, long long);
-int ApplySz(int, unsigned long long *);
-int ApplySp(int, unsigned long long *);
-int ApplySm(int, unsigned long long *);
+komplex expect_value(double (*)(int, unsigned long long*), int, struct FLAGS *);
+komplex expect_value2(double (*)(int, unsigned long long*), int,
+                       double (*)(int, unsigned long long*), int, struct FLAGS *);
+double ApplySz(int, unsigned long long *);
+double ApplySp(int, unsigned long long *);
+double ApplySm(int, unsigned long long *);
 
 // =============================================================================
 // Functions in RLsparse
