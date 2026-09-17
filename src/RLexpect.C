@@ -12,7 +12,9 @@
  */
 #include <complex>
 #include <RLexact.h>
+#include <cnr.h>
 #include <strings.h>
+#include <string.h>
 #include <stdio.h>
 #include "Functions.h"
 
@@ -22,23 +24,235 @@
 extern long long Nspins, Nsymops, Nsym, Nunique, Nsymvalue[NSYM];
 extern long long *Nocc, q_gs[NSYM];
 extern unsigned long long *unique;
-extern int numcanonical;
-extern komplex expectation_value;
 extern komplex *gs;
-extern CanonicalRep *canonical;
 extern OrbitTable *otable;
+extern komplex *S1exp;
+extern komplex **S2exp;
 extern double cosine[], sine[], sqroot[];
+/* Output files */
+extern FILE *outfileexp;
+extern FILE *outfilewit;
+
 /* Regional variables defined in this file */
 unsigned long long maskN, maskp, outvec;
-/* Builds symmetry orbits used to simplify local expectation value calculations */
-void BuildOrbitTable(OrbitTable *otable, CanonicalRep *canonical, struct FLAGS *input_flags)
+
+/* Finds 1 spin Expectation values of the system*/
+void FindExpectationValues(OrbitTable *otable, CanonicalRep *canonical, int numcanonical, struct FLAGS *input_flags)
+{
+    komplex expectation_value;
+    long long p, alpha;
+    const OrbitTable *el;
+    komplex lambda;
+    komplex *dummyS;
+    double (*op)(int, unsigned long long *) = NULL;
+    int m_zero_exp;
+
+    for (int i = 0; i < numcanonical; i++)
+    {
+        p = canonical[i].p;
+        alpha = canonical[i].alpha;
+
+        switch(alpha)
+        {
+            case (PLUS):
+                op = ApplySp;
+                m_zero_exp = 1;
+                break;
+            case (MINUS):
+                op = ApplySm;
+                m_zero_exp = 1;
+                break;
+            case (Z):
+                op = ApplySz;
+                m_zero_exp = 0;
+                break;
+            default:
+                fatalerror("The canonical does not have a spin value in range", alpha);
+        }
+
+        if (input_flags->m_sym && m_zero_exp != 0)
+            expectation_value = 0;
+        else
+            expectation_value = expect_value(op, p, input_flags);
+
+        for (long long symcom_count = 0; symcom_count < Nsymops; symcom_count++)
+        {
+            el = get_orbit_element(otable, p, alpha, symcom_count);
+            S1exp[el->target_site*3 + el->target_alpha] = el->lambda * expectation_value;
+        }
+    }
+    
+    /*Turn from S^+, S^- to S^x, S^y unless flagged otherwise*/
+    if ((!input_flags->find_expect_pm) && (!input_flags->m_sym))
+    {   
+        dummyS = kvector(0, Nspins * 3 - 1);
+        memcpy(dummyS, S1exp, Nspins * 3 * sizeof(komplex));
+        for (int i = 0; i < Nspins; i++)
+        {
+            S1exp[i*3 + 0] = (dummyS[i*3 + 0] + dummyS[i*3 + 1]) / 2.0;
+            S1exp[i*3 + 1] = (dummyS[i*3 + 0] - dummyS[i*3 + 1]) / (2.0 * I);
+        }
+        freekvector(dummyS, 0, Nspins * 3 - 1);
+    }
+    
+    if ((!input_flags->find_expect_pm) && (input_flags->m_sym))
+    {   
+        for (int i = 0; i < Nspins; i++)
+        {
+            S1exp[i*3 + 0] = S1exp[i*3 + 2];
+            S1exp[i*3 + 1] = S1exp[i*3 + 2];
+        }
+    }   
+}
+
+/* Finds 2 spin expectation values of the system*/
+void FindExpectationValues2(OrbitTable *otable, CanonicalPair *canonical2, int numcanonical2, struct FLAGS *input_flags)
+{
+    komplex expectation_value;
+    long long p1, alpha1, p2, alpha2;
+    const OrbitTable *el1, *el2;
+    double (*op1)(int, unsigned long long *) = NULL;
+    double (*op2)(int, unsigned long long *) = NULL;
+    komplex *dummyS;
+    int m_zero_exp; //Ensures that expecvalue is called minimally if m-symmetry is present.
+    int exp_wit; //Ensures that expectvalue is called minimally if only entanglement witnesses are required.
+    int no_exp_calc;
+
+    for (int i = 0; i < numcanonical2; i++)
+    {
+        p1 = canonical2[i].first.p;
+        alpha1 = canonical2[i].first.alpha;
+        p2 = canonical2[i].second.p;
+        alpha2 = canonical2[i].second.alpha;
+
+        switch (3 * alpha1 + alpha2)
+        {
+            case 3 * PLUS + PLUS:
+                op1 = ApplySp;
+                op2 = ApplySp;
+                m_zero_exp = 1;
+                exp_wit = 0;
+                break;
+            case 3 * PLUS + MINUS:
+                op1 = ApplySp;
+                op2 = ApplySm;
+                m_zero_exp = 0;
+                exp_wit = 0;
+                break;
+            case 3 * PLUS + Z:
+                op1 = ApplySp;
+                op2 = ApplySz;
+                m_zero_exp = 1;
+                exp_wit = 1;
+                break;
+            case 3 * MINUS + PLUS:
+                op1 = ApplySm;
+                op2 = ApplySp;
+                m_zero_exp = 0;
+                exp_wit = 0;
+                break;
+            case 3 * MINUS + MINUS:
+                op1 = ApplySm;
+                op2 = ApplySm;
+                m_zero_exp = 1;
+                exp_wit = 0;
+                break;
+            case 3 * MINUS + Z:
+                op1 = ApplySm;
+                op2 = ApplySz;
+                m_zero_exp = 1;
+                exp_wit = 1;
+                break;
+            case 3 * Z + PLUS:
+                op1 = ApplySz;
+                op2 = ApplySp;
+                m_zero_exp = 1;
+                exp_wit = 1;
+                break;
+            case 3 * Z + MINUS:
+                op1 = ApplySz;
+                op2 = ApplySm;
+                m_zero_exp = 1;
+                exp_wit = 1;
+                break;
+            case 3 * Z + Z:
+                op1 = ApplySz;
+                op2 = ApplySz;
+                m_zero_exp = 0;
+                exp_wit = 0;
+                break;
+            default:
+                fatalerror("The canonical pair does not have valid spin values", 3 * alpha1 + alpha2);
+        }
+        //Expectation value calculation logic
+        no_exp_calc = (input_flags->find_witness_exp && !input_flags->find_expect && exp_wit != 0);
+        if (input_flags->m_sym)
+        {
+            if (m_zero_exp != 0)
+                expectation_value = 0;
+            else
+                expectation_value = expect_value2(op1, p1, op2, p2, input_flags);
+        }
+        else
+        {
+            if (no_exp_calc)
+                expectation_value = 0; //avoids unecessary expectation value calculations if only the entanglement witnesses are required. Supposes that no canonicals orbit from z,(+,-) to (+-),(-+) which is valid.
+            else
+                expectation_value = expect_value2(op1, p1, op2, p2, input_flags);
+        }
+        for (long long symcom_count = 0; symcom_count < Nsymops; symcom_count++)
+        {
+            el1 = get_orbit_element(otable, p1, alpha1, symcom_count);
+            el2 = get_orbit_element(otable, p2, alpha2, symcom_count);
+            S2exp[el1->target_site * 3 + el1->target_alpha][el2->target_site * 3 + el2->target_alpha] = el1->lambda * el2->lambda * expectation_value;
+        }
+    }
+
+    /*Turn from S^+, S^- to S^x, S^y unless flagged otherwise*/
+    if ((!input_flags->find_expect_pm))
+    {   
+        dummyS = kvector(0, 8);
+        for (int i = 0; i < Nspins; i++)
+        {
+            for (int j = 0; j < Nspins; j++)
+            {
+                for (int a1 = 0; a1 < 3; a1++)
+                    for (int a2 = 0; a2 < 3; a2++)
+                        dummyS[a1*3 + a2] = S2exp[i*3 + a1][j*3 + a2];
+                //S^xS^x
+                S2exp[i*3 + 0][j*3 + 0] = (dummyS[0*3 + 0] + dummyS[0*3 + 1] + dummyS[1*3 + 0] + dummyS[1*3 + 1]) / 4.0;
+                //S^xS^y
+                S2exp[i*3 + 0][j*3 + 1] = (dummyS[0*3 + 0] - dummyS[0*3 + 1] + dummyS[1*3 + 0] - dummyS[1*3 + 1]) / (4.0 * I);
+                //S^xS^z
+                S2exp[i*3 + 0][j*3 + 2] = (dummyS[0*3 + 2] + dummyS[1*3 + 2]) / 2.0;
+                //S^yS^x
+                S2exp[i*3 + 1][j*3 + 0] = (dummyS[0*3 + 0] + dummyS[0*3 + 1] - dummyS[1*3 + 0] - dummyS[1*3 + 1]) / (4.0 * I);
+                //S^yS^y
+                S2exp[i*3 + 1][j*3 + 1] = - (dummyS[0*3 + 0] - dummyS[0*3 + 1] - dummyS[1*3 + 0] + dummyS[1*3 + 1]) / 4.0;
+                //S^yS^z
+                S2exp[i*3 + 1][j*3 + 2] = (dummyS[0*3 + 2] - dummyS[1*3 + 2]) / (2.0 * I);
+                //S^zS^x
+                S2exp[i*3 + 2][j*3 + 0] = (dummyS[2*3 + 0] + dummyS[2*3 + 1]) / 2.0;
+                //S^zS^y
+                S2exp[i*3 + 2][j*3 + 1] = (dummyS[2*3 + 0] - dummyS[2*3 + 1]) / (2.0 * I);
+                //S^zS^z no change
+            }
+        }
+        freekvector(dummyS, 0, 8);
+    }   
+
+}
+
+
+/* Builds symmetry orbits used to simplify local expectation value calculations, set to X, Y and Z but can easily be changed to +,-,Z if required  */
+void BuildOrbitTable(OrbitTable *otable, CanonicalRep *canonical, int *numcanonical, struct FLAGS *input_flags)
 {
     long long symcom_count, spin_count, sym = 0;
     long long p_new, alpha_new;
     int T[NSYM];
     komplex lambda;
     unsigned long long state, new_state;
-    numcanonical = 0;
+    *numcanonical = 0;
     maskN = (((unsigned long long)1) << Nspins) - 1;
     int *single_visit = (int *)calloc(Nspins * 3, sizeof(*single_visit));
 
@@ -51,11 +265,9 @@ void BuildOrbitTable(OrbitTable *otable, CanonicalRep *canonical, struct FLAGS *
     {
         for (int alpha = 0; alpha < 3; ++alpha)
         {
-            // If this state has already been visited by a previous orbit, skip it!
-            if (single_visit[p * 3 + alpha]) continue;
-
-            // Otherwise it is a new canonical
-            canonical[numcanonical++] = (CanonicalRep){p, alpha};
+            // Keep canonical representatives unique, but populate orbit entries for every operator.
+            if (!single_visit[p * 3 + alpha])
+                canonical[(*numcanonical)++] = (CanonicalRep){p, alpha};
             
             state = ((unsigned long long)1) << p;
             symcom_count = 0;
@@ -91,6 +303,56 @@ void BuildOrbitTable(OrbitTable *otable, CanonicalRep *canonical, struct FLAGS *
     }
     free(single_visit);
 }
+
+void BuildCanonicalPairList(CanonicalPair *canonical2, int *numcanonical2, struct FLAGS *input_flags)
+{
+    const long long operator_count = Nspins * 3;
+    const long long pair_count = operator_count * operator_count;
+    bool *visited = (bool *)calloc(pair_count, sizeof(bool));
+
+    *numcanonical2 = 0;
+    if (visited == NULL)
+        fatalerror("Could not allocate pair-orbit visit table", pair_count);
+
+    for (int p1 = 0; p1 < Nspins; ++p1)
+    {
+        for (int alpha1 = 0; alpha1 < 3; ++alpha1)
+        {
+            for (int p2 = 0; p2 < Nspins; ++p2)
+            {
+                for (int alpha2 = 0; alpha2 < 3; ++alpha2)
+                {
+                    long long pair_idx = (p1 * 3 + alpha1) * operator_count
+                                       + p2 * 3 + alpha2;
+                    if (visited[pair_idx])
+                        continue;
+
+                    canonical2[(*numcanonical2)++] = (CanonicalPair){{p1, alpha1}, {p2, alpha2}};
+
+                    for (long long symcom_count = 0; symcom_count < Nsymops; symcom_count++)
+                    {
+                        const OrbitTable *first = get_orbit_element(otable, p1, alpha1, symcom_count);
+                        const OrbitTable *second = get_orbit_element(otable, p2, alpha2, symcom_count);
+                        long long target_idx =
+                        (first->target_site * 3 + first->target_alpha) * operator_count
+                        + second->target_site * 3 + second->target_alpha;
+                        //if (first->target_site < 0 || first->target_site >= Nspins ||
+                        //    first->target_alpha < 0 || first->target_alpha >= 3 ||
+                        //    second->target_site < 0 || second->target_site >= Nspins ||
+                        //    second->target_alpha < 0 || second->target_alpha >= 3)
+                        //{
+                        //    fatalerror("Invalid transformed pair in orbit table", target_idx);
+                        //}
+                        visited[target_idx] = true;
+                    }
+                }
+            }
+        }
+    }
+    free(visited);
+}
+
+
 
 //Function for retrieving array index in the flat orbit table
 inline long long get_orbit_idx(int p, int alpha, long long symcom_id)
@@ -164,7 +426,7 @@ komplex expect_value(double (*Op)(int, unsigned long long*), int p, struct FLAGS
     return sum;
 }
 
-/* Expectation value of a product of two local operators: <gs| Op2_p2 Op1_p1 |gs> */
+/* Expectation value of a product of two local operators: <gs| Op1_p1 Op2_p2 |gs> */
 komplex expect_value2(double (*Op1)(int, unsigned long long*), int p1,
                       double (*Op2)(int, unsigned long long*), int p2,
                       struct FLAGS *input_flags)
@@ -188,10 +450,10 @@ komplex expect_value2(double (*Op1)(int, unsigned long long*), int p1,
         fac = 0;
         TLOOP_BEGIN
         op_state = new_state; // Ops mutate their bitmap argument; don't corrupt the TLOOP state
-        val1 = Op1(p1, &op_state);
-        if (val1 != 0)
+        val2 = Op2(p2, &op_state);
+        if (val2 != 0)
         {
-            val2 = Op2(p2, &op_state);
+            val1 = Op1(p1, &op_state);
             operation_value = val1 * val2;
             if (operation_value != 0)
             {

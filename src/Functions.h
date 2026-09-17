@@ -18,6 +18,8 @@ void deallocate(struct FLAGS *);
 void WritehmQ(long long *, struct FLAGS *);
 void WriteResults(long long, struct FLAGS *);
 void WriteCross(long long, long long *, long long, struct FLAGS *);
+void WriteS1exp(double, komplex *, struct FLAGS *);
+void WriteS2exp(double, komplex **, struct FLAGS *);
 void WriteMaggs(long long *);
 void ReadInputFlags(char *, struct FLAGS *);
 long long intro(struct FLAGS *);
@@ -35,6 +37,7 @@ void LogMessageCharDouble(const char *, double);
 void LogMessageCharInt(const char *, long long);
 void OutMessageCharInt(const char *, long long);
 void LogMessageChar3Vector(const char *, double, double, double);
+void LogMessageGS(struct FLAGS *);
 void WriteState(const char *, komplex *);
 void WriteStates(komplex **);
 
@@ -71,7 +74,10 @@ void ApplySmp(long long *, long long, komplex *, struct FLAGS *);
 // =============================================================================
 // Functions in RLexpect
 // =============================================================================
-void BuildOrbitTable(OrbitTable *, CanonicalRep *, struct FLAGS *);
+void FindExpectationValues(OrbitTable *, CanonicalRep *, int, struct FLAGS *);
+void FindExpectationValues2(OrbitTable *, CanonicalPair *, int, struct FLAGS *);
+void BuildOrbitTable(OrbitTable *, CanonicalRep *, int *, struct FLAGS *);
+void BuildCanonicalPairList(CanonicalPair *, int *, struct FLAGS *);
 inline long long get_orbit_idx(int, int, long long);
 inline void store_orbit_element(OrbitTable *, int, int, long long, int, int, komplex);
 inline const OrbitTable* get_orbit_element(const OrbitTable *, int, int, long long);

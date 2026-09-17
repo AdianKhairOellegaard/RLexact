@@ -1,11 +1,11 @@
 Ritz_conv 0.000001
 Zero_vec_length 0.000001
 Find_expect 1
-TEST_EXPECT 1
+TEST_EXPECT 0
 Mode 0
 Unimode 0
 Mode 0
-M start 0
+M start -1
 M end 0
 Number of spins 4
 Number of Couplings 4

@@ -31,7 +31,11 @@ struct FLAGS
   long long motive;          // DLC TODO: We need a description of the MOTIVE. Maybe
   long long find_mag;        // DLC TODO: Needs description. Debugging required! Should only be used WITHOUT MSYM SJ 20/11/17
   long long cross;           // DLC: I have literally no idea what this is
-  long long find_expect;     // AKOE: Find expectation values of the local spin operators 
+  long long find_expect;     // AKOE: Find expectation values x y z of the local spin operators
+  long long find_expect_pm;  // AKOE: Find expectation values + - z of the local spin operators
+  long long find_witness_exp;    // AKOE: Find entanglement witnesses using expectation values
+  long long find_witness_cross;    // AKOE: Find entanglement witnesses using expectation values
+
 
   // OUTPUT SPECIFIERS
   long long write_energies;
@@ -206,6 +210,8 @@ struct FLAGS
 #define SYYEND ".syy" // only used of FIND_CROSS
 #define SPMEND ".spm" // only used of FIND_CROSS and FIND_CROSS_PM
 #define SMPEND ".smp" // only used of FIND_CROSS and FIND_CROSS_PM
+#define EXPEND ".exp" // only used of find_expect
+#define WITEND ".wit" // only used of find_witness_exp and find_witness_cross
 
 #define MATRIXFILENAME "SqMat"
 #define COEND ".gs"
@@ -246,7 +252,12 @@ typedef struct {
     int alpha;
 } CanonicalRep;
 
-// The flat orbit table structure
+typedef struct {
+  CanonicalRep first;
+  CanonicalRep second;
+} CanonicalPair;
+
+// The flat orbit table structure. Structure padding is larger than necessary here. start with the complex instead to fix this
 typedef struct {
     int target_site;
     int target_alpha;

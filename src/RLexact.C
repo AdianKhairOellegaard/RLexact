@@ -140,19 +140,17 @@ int spinflip_number;  /* If spin flip symmetry is present this has a value equal
 int spinflip_GSvalue; /* If spin flip symmetry is present, this is its value in the Ground State */
 /* Orbit table, dynamically allocated */
 CanonicalRep *canonical;
+CanonicalPair *canonical2;
 OrbitTable *otable;
+/* Single-site expectation values, flat Nspins, dynamically allocated */
+komplex *S1exp;
+komplex **S2exp;
+/* Two-site expectation values, flat Nspins, dynamically allocated */
 /* Orbit table and expectation value variables */
 int numcanonical;
-komplex expectation_valuep;
-komplex expectation_valuem;
-komplex expectation_valuez;
-komplex expectation_valuepp;
-komplex expectation_valuepm;
-komplex expectation_valuezz;
-komplex expectation_valuemm;
-komplex expectation_valuemp;
-komplex expectation_valuexx;
-komplex expectation_valueyy;
+int numcanonical2;
+double global_gs_energy;
+long long global_twom;
 /* The input filename */
 char *infile_name;
 bool name_on_commandline = false;
@@ -163,6 +161,8 @@ FILE *outfilezz;
 
 FILE *outfilexx, *outfileyy;
 FILE *outfilepm, *outfilemp;
+FILE *outfileexp;
+FILE *outfilewit;
 
 /* Output file for storing data */
 FILE *outfile;
@@ -335,25 +335,35 @@ int main(int argc, char *argv[])
     time_stamp(&time_single, STOP, "Longest_Matrix allocated ");
 
   //AKOE: Builds orbits for expectations values.
-  if (input_flags.find_expect)
+  if (input_flags.find_expect || input_flags.find_witness_exp || input_flags.find_witness_cross)
   {
     if (mode == MODEN && rank == 0)
     {
-      BuildOrbitTable(otable, canonical, &input_flags);
+      BuildOrbitTable(otable, canonical, &numcanonical, &input_flags);
+      BuildCanonicalPairList(canonical2, &numcanonical2, &input_flags);
       if (input_flags.TEST_EXPECT)
       {
-        fprintf(stdout, "Canonical representatives (%d):\n", numcanonical);
+        fprintf(logfile, "Canonical Representatives (%d):\n", numcanonical + numcanonical2);
         for (int i = 0; i < numcanonical; i++)
         {
-          fprintf(stdout, "  p = %d, alpha = %d\n",
+          fprintf(logfile, "  p = %d, a = %d\n",
                   canonical[i].p, canonical[i].alpha);
         }
+        for (int i = 0; i < numcanonical2; i++)
+        {
+          fprintf(logfile, "  p1 = %d, p2 = %d, a1 = %d, a2 = %d\n",
+                  canonical2[i].first.p, canonical2[i].second.p, canonical2[i].first.alpha, canonical2[i].second.alpha);
+        }
+        fflush(logfile);
       }
     }
   }
   if (input_flags.m_sym)
   {
     // LogMessageChar("M_SYM encountered \n");
+    global_gs_energy = LARGE_NUMBER;
+    global_twom = 0;
+
     for (twom = (long long)(2 * mstart); twom <= (long long)(2 * mend); twom = twom + 2)
     {
 
@@ -405,6 +415,13 @@ int main(int argc, char *argv[])
           Solve_Lanczos(&input_flags);
         }
 
+        // Snapshot this m-sector if it holds the lowest energy seen so far,
+        if ((rank == 0) && (input_flags.find_expect || input_flags.find_witness_exp || input_flags.find_witness_cross) && (mode == MODEN) && (gs_energy < global_gs_energy))
+        {
+          global_gs_energy = gs_energy;
+          global_twom = twom;
+        }
+
         if (input_flags.VERBOSE_TIME_LV1)
         {
           time_stamp(&time_single0, STOP, "one m/h ");
@@ -412,51 +429,31 @@ int main(int argc, char *argv[])
         }
       }
     }
-    if ((rank == 0) && input_flags.find_expect && (mode == MODEN))
+    if ((rank == 0) && (mode == MODEN))
     {
-      BuildCycle(q_gs, &input_flags);
-      long long m_gs = 0;
-      for (long long i = 0; (i < Nunique); i++)
+      if (input_flags.find_expect || input_flags.find_witness_exp)
       {
-        if (abs(gs[i]) > SMALL_NUMBER)
+        fprintf(stdout,"Diagonalization is complete. Calculating expectation values/entanglement witnesses from ground state. \n");
+        // Restore the global (cross-m) ground state before computing expectation values
+        if (twom - 2 != global_twom)
         {
-          m_gs = 2 * Count(unique[i], &input_flags) - Nspins;
-          break;
+          Nunique = FillUnique(global_twom, 0, &input_flags);
+          FillUniqueObservables(&input_flags);
         }
+        LogMessageChar("\n");
+        time_stamp(&time_single0, START, "expectation value/entanglement witness process: ");
+        BuildCycle(q_gs, &input_flags);
+        if (input_flags.TEST_EXPECT)
+              LogMessageGS(&input_flags);
+        FindExpectationValues(otable, canonical, numcanonical, &input_flags);
+        FindExpectationValues2(otable, canonical2, numcanonical2, &input_flags);
+        if (input_flags.find_expect)
+        {
+          WriteS1exp(twom/2.0, S1exp, &input_flags);
+          WriteS2exp(twom/2.0, S2exp, &input_flags);
+        }
+        time_stamp(&time_single0, STOP, "expectation value/entanglement witness process is");
       }
-      fprintf(stdout,"Finding expectation value in case of m-symmetry (m = %lf) with p = 0, alpha = z,", m_gs/2.0);
-      if (input_flags.TEST_EXPECT)
-          {
-          fprintf(stdout, "q_gs = (");
-          for (long long sym = 0; sym < Nsym; sym++)
-            fprintf(stdout, "%lld ", q_gs[sym]);
-          fprintf(stdout, ")\n");
-          fprintf(stdout, "Ground state vector:\n");
-          for (long long i = 0; i < Nunique; i++)
-          {
-            double phase = Arg(gs[i]);
-            if (phase < 0)
-              phase += 2 * PI;
-            fprintf(stdout, "  gs[%lld] = %lf, phase = %lf (unique = %llu)\n", i, abs(gs[i]), phase, unique[i]);
-          }
-          expectation_valuez = expect_value(ApplySz, 0, &input_flags);
-          fprintf(stdout,"<S_0^z> = %lf + %lf I\n\n", real(expectation_valuez), imag(expectation_valuez));
-          for (int i = 0; i < Nspins; i++)
-          {
-            for (int j = (i == 0 ? 0 : i + 1); j < Nspins; j++)
-          {  
-            expectation_valuepm = expect_value2(ApplySm, j, ApplySp, i, &input_flags);
-            expectation_valuemp = expect_value2(ApplySp, j, ApplySm, i, &input_flags);
-
-            expectation_valuexx = (expectation_valuepm + expectation_valuemp) / 4.0;
-            expectation_valueyy = (expectation_valuepm + expectation_valuemp) / 4.0;
-            expectation_valuezz = expect_value2(ApplySz, i, ApplySz, j, &input_flags);
-            fprintf(stdout,"\n<S_%d^x S_%d^x> = %lf + %lf I\n", i, j, real(expectation_valuexx), imag(expectation_valuexx)); 
-            fprintf(stdout,"\n<S_%d^y S_%d^y> = %lf + %lf I\n", i, j, real(expectation_valueyy), imag(expectation_valueyy));
-            fprintf(stdout,"\n<S_%d^z S_%d^z> = %lf + %lf I\n", i, j, real(expectation_valuezz), imag(expectation_valuezz) );
-          }
-          }
-          }
     }
   }
   else if (!input_flags.m_sym)
@@ -514,54 +511,30 @@ int main(int argc, char *argv[])
           Solve_Matrix(&input_flags);
         else if (input_flags.use_lanczos)
           Solve_Lanczos(&input_flags);
-        if ((rank == 0) && input_flags.find_expect && (mode == MODEN))
-        {
-          fprintf(stdout,"Finding expectation value in case of an external magnetic field h = %lf. Ground state energy %lf: \n", h, gs_energy); 
-          BuildCycle(q_gs, &input_flags);
-          if (input_flags.TEST_EXPECT)
-          {
-          fprintf(stdout, "q_gs = (");
-          for (long long sym = 0; sym < Nsym; sym++)
-            fprintf(stdout, "%lld ", q_gs[sym]);
-          fprintf(stdout, ")\n");
-          fprintf(stdout, "Ground state vector:\n");
-          for (long long i = 0; i < Nunique; i++)
-          {
-            double phase = Arg(gs[i]);
-            if (phase < 0)
-              phase += 2 * PI;
-            fprintf(stdout, "  gs[%lld] = %lf, phase = %lf (unique = %llu)\n", i, abs(gs[i]), phase, unique[i]);
-          }
-          expectation_valuep = expect_value(ApplySp, 0, &input_flags);
-          expectation_valuem = expect_value(ApplySm, 0, &input_flags);
-          expectation_valuez = expect_value(ApplySz, 0, &input_flags);
-          fprintf(stdout,"\n<S_0^x> = %lf + %lf I\n", (real(expectation_valuep)+real(expectation_valuem))/2, (imag(expectation_valuep)+imag(expectation_valuem))/2); 
-          fprintf(stdout,"<S_0^y> = %lf + %lf I\n", (imag(expectation_valuep)-imag(expectation_valuem))/2, -(real(expectation_valuep)-real(expectation_valuem))/2); 
-          fprintf(stdout,"<S_0^z> = %lf + %lf I\n\n", real(expectation_valuez), imag(expectation_valuez));
-
-          for (int i = 0; i < Nspins; i++)
-          {
-            for (int j = (i == 0 ? 0 : i + 1); j < Nspins; j++)
-          {  
-            expectation_valuepp = expect_value2(ApplySp, i, ApplySp, j, &input_flags);
-            expectation_valuemm = expect_value2(ApplySm, i, ApplySm, j, &input_flags);
-            expectation_valuepm = expect_value2(ApplySm, i, ApplySp, j, &input_flags);
-            expectation_valuemp = expect_value2(ApplySp, i, ApplySm, j, &input_flags);
-
-            expectation_valuexx = (expectation_valuepp + expectation_valuepm + expectation_valuemp + expectation_valuemm) / 4.0;
-            expectation_valueyy = -(expectation_valuepp - expectation_valuepm - expectation_valuemp + expectation_valuemm) / 4.0;
-            expectation_valuezz = expect_value2(ApplySz, i, ApplySz, j, &input_flags);
-            fprintf(stdout,"\n<S_%d^x S_%d^x> = %lf + %lf I\n", j, i, real(expectation_valuexx), imag(expectation_valuexx)); 
-            fprintf(stdout,"\n<S_%d^y S_%d^y> = %lf + %lf I\n", j, i, real(expectation_valueyy), imag(expectation_valueyy));
-            fprintf(stdout,"\n<S_%d^z S_%d^z> = %lf + %lf I\n", j, i, real(expectation_valuezz), imag(expectation_valuezz) );
-          }
-          }
-          }
-        }
         if (input_flags.VERBOSE_TIME_LV1)
         {
           time_stamp(&time_single0, STOP, "one m/h ");
           LogMessageChar("\n");
+        }
+        if ((rank == 0) && (mode == MODEN))
+        {
+          if (input_flags.find_expect || input_flags.find_witness_exp)
+          {
+            //fprintf(stdout,"Diagonalization is complete. Calculating expectation values/entanglement witnesses of ground state. \n");
+            LogMessageChar("\n");
+            time_stamp(&time_single0, START, "expectation value/entanglement witness process for one h ");
+            BuildCycle(q_gs, &input_flags);
+            if (input_flags.TEST_EXPECT)
+              LogMessageGS(&input_flags);
+            FindExpectationValues(otable, canonical, numcanonical, &input_flags);
+            FindExpectationValues2(otable, canonical2, numcanonical2, &input_flags);
+            if (input_flags.find_expect)
+            {
+              WriteS1exp(h, S1exp, &input_flags);
+              WriteS2exp(h, S2exp, &input_flags);
+            }
+            time_stamp(&time_single0, STOP, "expectation value/entanglement witness process particular h is");
+          }
         }
       }
     }
@@ -1100,10 +1073,13 @@ void allocate(struct FLAGS *input_flags)
       cross = dvector(1, Nunique);
   }
   
-  if (input_flags->find_expect)
+  if (input_flags->find_expect || input_flags->find_witness_exp || input_flags->find_witness_cross)
     {
       canonical = (CanonicalRep*)malloc(Nspins * 3 * sizeof(CanonicalRep));
+      canonical2 = (CanonicalPair*)malloc((Nspins * 3) * (Nspins * 3) * sizeof(CanonicalPair));
       otable = (OrbitTable*)malloc(Nspins * 3 * Nsymops * sizeof(OrbitTable));
+      S1exp = kvector(0, Nspins * 3 - 1);
+      S2exp = kmatrix(0, Nspins * 3 - 1, 0, Nspins * 3 - 1);
     }
 
   return;
@@ -1160,10 +1136,13 @@ void deallocate(struct FLAGS *input_flags)
       free(spin_positions[i]);
     free(spin_positions);
   }
-  if (input_flags->find_expect)
+  if (input_flags->find_expect || input_flags->find_witness_exp || input_flags->find_witness_cross)
     {
       free(otable);
       free(canonical);
+      free(canonical2);
+      freekvector(S1exp, 0, Nspins * 3 - 1);
+      freekmatrix(S2exp, 0, Nspins * 3 - 1, 0, Nspins * 3 - 1);
     }
   return;
 }

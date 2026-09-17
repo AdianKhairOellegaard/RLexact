@@ -1,6 +1,8 @@
 Ritz_conv 0.001
 random_number_seed 42
 Zero_vec_length 0.001
+Find_expect 1
+Find_witness_exp 1
 Mode 0
 Unimode 0
 Mode 0

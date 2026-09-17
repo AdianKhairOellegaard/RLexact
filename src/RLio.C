@@ -51,9 +51,12 @@ extern double *magnetisation;
 extern double maggs;
 extern long long Nq_choice;
 extern long long **q_choice;
+extern int numcanonical;
 extern FILE *outfilezz;
 extern FILE *outfilexx, *outfileyy;
 extern FILE *outfilepm, *outfilemp;
+extern FILE *outfileexp;
+extern FILE *outfilewit;
 extern double *cross;
 extern long long Nspins_in_uc;
 extern float **spin_positions;
@@ -297,6 +300,42 @@ long long intro(struct FLAGS *input_flags)
       }
       fflush(outfilemp);
     }
+
+    if (input_flags->find_expect)
+    {
+      // strcpy(outfile_name,infile_name);
+      // strcat(outfile_name,SPMEND);
+      errno = 1;
+      if (snprintf(outfile_name, 255, "%s-%d%s", infile_name, rank, EXPEND) >= 256)
+      {
+        fatalerror("infile_name too large", errno);
+        return -1;
+      }
+      if ((outfileexp = fopen(outfile_name, "w")) == NULL)
+      {
+        fatalerror("Cannot open output file for expectation values, sorry!", errno);
+        return -1;
+      }
+      fflush(outfileexp);
+    }
+
+    if (input_flags->find_witness_exp || input_flags->find_witness_cross)
+    {
+      // strcpy(outfile_name,infile_name);
+      // strcat(outfile_name,SPMEND);
+      errno = 1;
+      if (snprintf(outfile_name, 255, "%s-%d%s", infile_name, rank, WITEND) >= 256)
+      {
+        fatalerror("infile_name too large", errno);
+        return -1;
+      }
+      if ((outfilewit = fopen(outfile_name, "w")) == NULL)
+      {
+        fatalerror("Cannot open output file for entanglement witnesses, sorry!", errno);
+        return -1;
+      }
+      fflush(outfilewit);
+    }
   }
   if (input_flags->TEST_INPUT)
     LogMessageChar("All filenames are OK. \n");
@@ -327,6 +366,9 @@ void ReadInputFlags(char *filename, struct FLAGS *input_flags)
   input_flags->find_cross_pm = 0;
   input_flags->find_mag = 0;
   input_flags->find_expect = 0;
+  input_flags->find_expect_pm = 0;
+  input_flags->find_witness_exp = 0;
+  input_flags->find_witness_cross = 0;
 
   input_flags->write_energies = 1; // Output energies and states as default
   input_flags->write_states = 1;
@@ -345,6 +387,9 @@ void ReadInputFlags(char *filename, struct FLAGS *input_flags)
   matchlines_wrapper(filedata, "Find_cross_pm", &input_flags->find_cross_pm, true, input_flags);
   matchlines_wrapper(filedata, "Find_magnetisation", &input_flags->find_mag, true, input_flags);
   matchlines_wrapper(filedata, "Find_expect", &input_flags->find_expect, true, input_flags);
+  matchlines_wrapper(filedata, "Find_expect_pm", &input_flags->find_expect_pm, true, input_flags);
+  matchlines_wrapper(filedata, "Find_witness_exp", &input_flags->find_witness_exp, true, input_flags);
+  matchlines_wrapper(filedata, "Find_witness_cross", &input_flags->find_witness_cross, true, input_flags);
 
   matchlines_wrapper(filedata, "Write_Energies", &input_flags->write_energies, true, input_flags);
   matchlines_wrapper(filedata, "Write_States", &input_flags->write_states, true, input_flags);
@@ -1034,6 +1079,10 @@ void outro(struct FLAGS *input_flags)
       fclose(outfilemp);
     }
   }
+  if (input_flags->find_expect)
+    fclose(outfileexp);
+  if (input_flags->find_witness_exp || input_flags->find_witness_cross)
+    fclose(outfilewit);
   LogMessageChar("\n End of diagonalization program RLexact.\n");
 
   return;
@@ -1125,6 +1174,32 @@ void LogMessageChar3Vector(const char *str,
   fprintf(logfile, " %s (%lld, %lld, %lld ) \n", str, l1, l2, l3);
   fflush(logfile);
   return;
+}
+
+void LogMessageGS(struct FLAGS *input_flags)
+{
+  if (input_flags->m_sym)
+    fprintf(logfile,"Finding expectation value for the global ground state at m = %lf. Ground state energy %lf: \n", twom/2.0, gs_energy);
+  else
+    fprintf(logfile,"Finding expectation value in case of an external magnetic field h = %lf. Ground state energy %lf: \n", h, gs_energy);
+
+  fprintf(logfile, "q_gs = (");
+  for (long long sym = 0; sym < Nsym; sym++)
+    fprintf(logfile, "%lld ", q_gs[sym]);
+  fprintf(logfile, ")\n");
+  fprintf(logfile, "Ground state vector:\n");
+  for (long long i = 0; i < Nunique; i++)
+  {
+    double phase = Arg(gs[i]);
+    double modulus = abs(gs[i]);
+    if (modulus != 0)
+      {
+        if (phase < 0)
+          phase += 2 * PI;
+        fprintf(logfile, "  gs[%lld] = %lf, phase = %lf (unique = %llu)\n", i, modulus, phase, unique[i]);
+      }
+  }
+  fflush(logfile);
 }
 
 void WriteState(const char *msg, komplex *state)
@@ -1384,6 +1459,115 @@ if (input_flags->TEST_WRITECROSS)
   }
   fprintf(crossfile, "]\n\n");
 #endif // CSVOUT
+  return;
+}
+
+void WriteS1exp(double mh, komplex *S1exp, struct FLAGS *input_flags)
+{
+  /* Output the local spin operator expecations values of the ground state */
+  char spindirec[3];
+  FILE *expfile;
+  static bool header_written = false;
+  static double mhchange = mh;
+  if (mhchange != mh)
+    header_written = false;
+  if (!input_flags->find_expect_pm)
+  {
+    spindirec[0] = 'x';
+    spindirec[1] = 'y';
+  }
+  else
+  {
+    spindirec[0] = '+';
+    spindirec[1] = '-';
+  }
+  spindirec[2] = 'z';
+
+  expfile = outfileexp;
+
+  // Print header only once, on the first call
+  if (!header_written)
+  {
+    if (input_flags->m_sym)
+      fprintf(expfile, "\nm,");
+    else
+      fprintf(expfile, "\nh,");
+    fprintf(expfile, "p,");
+    fprintf(expfile, "a,");
+    fprintf(expfile, "S\n");
+    header_written = true;
+  }
+  
+  for (int p = 0; p < Nspins; p++)
+  {
+    for (int a = 0; a < 3; a++)
+    {
+      fprintf(expfile, "%g,", mh);
+      fprintf(expfile, "%d,", p);
+      fprintf(expfile, "%c,", spindirec[a]);
+      fprintf(expfile, "%lf + %lf*I\n", real(S1exp[3*p + a]), imag(S1exp[3*p + a]));
+    }
+  }
+  return;
+}
+
+void WriteS2exp(double mh, komplex **S2exp, struct FLAGS *input_flags)
+{
+  /* Output the pair of local spin operator expecations values of the ground state */
+  char spindirec[3];
+  FILE *expfile;
+  static bool second_header_written = false;
+  static double mhchange2 = mh;
+  if (mhchange2 != mh)
+    second_header_written = false;
+
+  if (!input_flags->find_expect_pm)
+  {
+    spindirec[0] = 'x';
+    spindirec[1] = 'y';
+  }
+  else
+  {
+    spindirec[0] = '+';
+    spindirec[1] = '-';
+  }
+  spindirec[2] = 'z';
+
+  expfile = outfileexp;
+
+  // Print header only once, on the first call
+  if (!second_header_written)
+  {
+    if (input_flags->m_sym)
+      fprintf(expfile, "\nm,");
+    else
+      fprintf(expfile, "\nh,");
+    fprintf(expfile, "p1,");
+    fprintf(expfile, "p2,");
+    fprintf(expfile, "a1,");
+    fprintf(expfile, "a2,");
+    fprintf(expfile, "S1S2\n");
+    second_header_written = true;
+  }
+  
+  for (int p1 = 0; p1 < Nspins; p1++)
+  {
+    for (int p2 = 0; p2 < Nspins; p2++)
+    {
+      for (int a1 = 0; a1 < 3; a1++)
+      {
+        for (int a2 = 0; a2 < 3; a2++)
+        {
+          fprintf(expfile, "%g,", mh);
+          fprintf(expfile, "%d,", p1);
+          fprintf(expfile, "%d,", p2);
+          fprintf(expfile, "%c,", spindirec[a1]);
+          fprintf(expfile, "%c,", spindirec[a2]);
+          fprintf(expfile, "%lf + %lf*I\n", real(S2exp[3*p1 + a1][3*p2 + a2]), imag(S2exp[3*p1 + a1][3*p2 + a2]));
+        }
+      }
+    }
+  }
   return;
 }
 
