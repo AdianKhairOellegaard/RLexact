@@ -4,7 +4,8 @@ Mode 0
 Unimode 0
 Mode 0
 Find_expect 1
-TEST_EXPECT 0
+TEST_EXPECT 1
+Find_witness_exp 1
 M start 0
 M end 4
 Number of spins 8

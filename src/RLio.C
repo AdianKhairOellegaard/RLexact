@@ -68,6 +68,9 @@ extern double gs_energy;
 extern char *infile_name;
 extern bool name_on_commandline;
 extern double szqlength;
+extern double *one_tangle, **concurrence, *two_tangle, *QFI;
+extern long long q_T_count;
+extern long long Nsymvalue[NSYM];
 extern long long mode;
 extern long long unimode;
 extern int spinflip_number;
@@ -1464,99 +1467,69 @@ if (input_flags->TEST_WRITECROSS)
 
 void WriteS1exp(double mh, komplex *S1exp, struct FLAGS *input_flags)
 {
-  /* Output the local spin operator expecations values of the ground state */
-  char spindirec[3];
-  FILE *expfile;
+  FILE *expfile = outfileexp;
   static bool header_written = false;
   static double mhchange = mh;
-  if (mhchange != mh)
-    header_written = false;
-  if (!input_flags->find_expect_pm)
-  {
-    spindirec[0] = 'x';
-    spindirec[1] = 'y';
-  }
-  else
-  {
-    spindirec[0] = '+';
-    spindirec[1] = '-';
-  }
-  spindirec[2] = 'z';
+  const char *field_label = input_flags->m_sym ? "m" : "h";
+  const char spindirec[3] = {
+    input_flags->find_expect_pm ? '+' : 'x',
+    input_flags->find_expect_pm ? '-' : 'y',
+    'z'
+  };
 
-  expfile = outfileexp;
+  if (mhchange != mh)
+  {
+    header_written = false;
+    mhchange = mh;
+  }
 
   // Print header only once, on the first call
   if (!header_written)
   {
-    if (input_flags->m_sym)
-      fprintf(expfile, "\nm,");
-    else
-      fprintf(expfile, "\nh,");
-    fprintf(expfile, "p,");
-    fprintf(expfile, "a,");
-    fprintf(expfile, "S\n");
+    fprintf(expfile, "\n%s,p,a,S\n", field_label);
     header_written = true;
   }
   
-  for (int p = 0; p < Nspins; p++)
-  {
-    for (int a = 0; a < 3; a++)
+  for (int p = 0; p < Nspins; ++p)
+    for (int a = 0; a < 3; ++a)
     {
       fprintf(expfile, "%g,", mh);
       fprintf(expfile, "%d,", p);
       fprintf(expfile, "%c,", spindirec[a]);
       fprintf(expfile, "%lf + %lf*I\n", real(S1exp[3*p + a]), imag(S1exp[3*p + a]));
     }
-  }
   return;
 }
 
 void WriteS2exp(double mh, komplex **S2exp, struct FLAGS *input_flags)
 {
-  /* Output the pair of local spin operator expecations values of the ground state */
-  char spindirec[3];
-  FILE *expfile;
+  FILE *expfile = outfileexp;
   static bool second_header_written = false;
   static double mhchange2 = mh;
+  const char *field_label = input_flags->m_sym ? "m" : "h";
+  const char spindirec[3] = {
+    input_flags->find_expect_pm ? '+' : 'x',
+    input_flags->find_expect_pm ? '-' : 'y',
+    'z'
+  };
+
   if (mhchange2 != mh)
+  {
     second_header_written = false;
-
-  if (!input_flags->find_expect_pm)
-  {
-    spindirec[0] = 'x';
-    spindirec[1] = 'y';
+    mhchange2 = mh;
   }
-  else
-  {
-    spindirec[0] = '+';
-    spindirec[1] = '-';
-  }
-  spindirec[2] = 'z';
-
-  expfile = outfileexp;
 
   // Print header only once, on the first call
   if (!second_header_written)
   {
-    if (input_flags->m_sym)
-      fprintf(expfile, "\nm,");
-    else
-      fprintf(expfile, "\nh,");
-    fprintf(expfile, "p1,");
-    fprintf(expfile, "p2,");
-    fprintf(expfile, "a1,");
-    fprintf(expfile, "a2,");
-    fprintf(expfile, "S1S2\n");
+    fprintf(expfile, "\n%s,p1,p2,a1,a2,S1S2\n", field_label);
     second_header_written = true;
   }
   
-  for (int p1 = 0; p1 < Nspins; p1++)
-  {
-    for (int p2 = 0; p2 < Nspins; p2++)
-    {
-      for (int a1 = 0; a1 < 3; a1++)
-      {
-        for (int a2 = 0; a2 < 3; a2++)
+  for (int p1 = 0; p1 < Nspins; ++p1)
+    for (int p2 = 0; p2 < Nspins; ++p2)
+      for (int a1 = 0; a1 < 3; ++a1)
+        for (int a2 = 0; a2 < 3; ++a2)
         {
           fprintf(expfile, "%g,", mh);
           fprintf(expfile, "%d,", p1);
@@ -1565,9 +1538,73 @@ void WriteS2exp(double mh, komplex **S2exp, struct FLAGS *input_flags)
           fprintf(expfile, "%c,", spindirec[a2]);
           fprintf(expfile, "%lf + %lf*I\n", real(S2exp[3*p1 + a1][3*p2 + a2]), imag(S2exp[3*p1 + a1][3*p2 + a2]));
         }
-      }
+  return;
+}
+
+void WriteWitexp(double mh, struct FLAGS *input_flags)
+{
+  FILE *witfile = outfilewit;
+  static bool header_written = false;
+  const char *field_label = input_flags->m_sym ? "m" : "h";
+  const char spindirec[3] = {'x', 'y', 'z'};
+
+  if (!header_written)
+  {
+    fprintf(witfile, "%s,witness,p,p1,p2,alpha", field_label);
+    for (int symmetry = 0; symmetry < Nsym; ++symmetry)
+      fprintf(witfile, ",q%d", symmetry);
+    fprintf(witfile, ",value\n");
+    header_written = true;
+  }
+
+  (void)input_flags;
+
+  for (long long p = 0; p < Nspins; ++p)
+  {
+    fprintf(witfile, "%g,t1,%lld,-1,-1,-1", mh, p);
+    for (long long symmetry = 0; symmetry < Nsym; ++symmetry)
+      fprintf(witfile, ",-1");
+    fprintf(witfile, ",%g\n", one_tangle[p]);
+  }
+
+  for (long long p1 = 0; p1 < Nspins; ++p1)
+    for (long long p2 = 0; p2 < Nspins; ++p2)
+    {
+      fprintf(witfile, "%g,C,-1,%lld,%lld,-1", mh, p1, p2);
+      for (long long symmetry = 0; symmetry < Nsym; ++symmetry)
+        fprintf(witfile, ",-1");
+      fprintf(witfile, ",%g\n", concurrence[p1][p2]);
+    }
+
+  for (long long p = 0; p < Nspins; ++p)
+  {
+    fprintf(witfile, "%g,t2,%lld,-1,-1,-1", mh, p);
+    for (long long symmetry = 0; symmetry < Nsym; ++symmetry)
+      fprintf(witfile, ",-1");
+    fprintf(witfile, ",%g\n", two_tangle[p]);
+  }
+
+  long long q[NSYM] = {0};
+  for (long long q_index = 0; q_index < q_T_count; ++q_index)
+  {
+    for (int alpha = 0; alpha < 3; ++alpha)
+    {
+      fprintf(witfile, "%g,QFI,-1,-1,-1,%c", mh, spindirec[alpha]);
+      for (int symmetry = 0; symmetry < Nsym; ++symmetry)
+        fprintf(witfile, ",%lld", q[symmetry]);
+      fprintf(witfile, ",%g\n", QFI[q_index * 3 + alpha]);
+    }
+
+    for (int dimension = 0; dimension < Ndimensions; ++dimension)
+    {
+      const int symmetry = TransIds[dimension];
+      const long long limit = Nsymvalue[symmetry] * Trans_Qmax[dimension];
+      if (++q[symmetry] < limit)
+        break;
+      q[symmetry] = 0;
     }
   }
+
   return;
 }
 

@@ -5,7 +5,7 @@ Unimode 0
 M_Symmetry 0
 random_number_seed 42
 Find_cross 1
-Find_expect 0
+Find_expect 1
 Find_witness_exp 1
 TEST_EXPECT 0
 H start 0.05 //This is where negative field values can be put to reverse the direction of the field.

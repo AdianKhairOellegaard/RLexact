@@ -142,15 +142,21 @@ int spinflip_GSvalue; /* If spin flip symmetry is present, this is its value in 
 CanonicalRep *canonical;
 CanonicalPair *canonical2;
 OrbitTable *otable;
-/* Single-site expectation values, flat Nspins, dynamically allocated */
+/* Single-site and pair site expectation values, dynamically allocated */
 komplex *S1exp;
 komplex **S2exp;
-/* Two-site expectation values, flat Nspins, dynamically allocated */
 /* Orbit table and expectation value variables */
 int numcanonical;
 int numcanonical2;
 double global_gs_energy;
 long long global_twom;
+/* Entanglement Witness variables*/
+double *one_tangle;
+double **concurrence;
+double *two_tangle;
+double *QFI;
+long long q_T_count;
+
 /* The input filename */
 char *infile_name;
 bool name_on_commandline = false;
@@ -452,6 +458,14 @@ int main(int argc, char *argv[])
           WriteS1exp(twom/2.0, S1exp, &input_flags);
           WriteS2exp(twom/2.0, S2exp, &input_flags);
         }
+        if (input_flags.find_witness_exp)
+        {
+          one_tangle_exp(S1exp);
+          concurrence_exp(S1exp, S2exp);
+          two_tangle_exp(concurrence);
+          QFI_exp(S1exp, S2exp);
+          WriteWitexp(twom / 2.0, &input_flags);
+        }
         time_stamp(&time_single0, STOP, "expectation value/entanglement witness process is");
       }
     }
@@ -532,6 +546,14 @@ int main(int argc, char *argv[])
             {
               WriteS1exp(h, S1exp, &input_flags);
               WriteS2exp(h, S2exp, &input_flags);
+            }
+            if (input_flags.find_witness_exp)
+            {
+              one_tangle_exp(S1exp);
+              concurrence_exp(S1exp, S2exp);
+              two_tangle_exp(concurrence);
+              QFI_exp(S1exp, S2exp);
+              WriteWitexp(h, &input_flags);
             }
             time_stamp(&time_single0, STOP, "expectation value/entanglement witness process particular h is");
           }
@@ -1081,6 +1103,19 @@ void allocate(struct FLAGS *input_flags)
       S1exp = kvector(0, Nspins * 3 - 1);
       S2exp = kmatrix(0, Nspins * 3 - 1, 0, Nspins * 3 - 1);
     }
+  if (input_flags->find_witness_exp || input_flags->find_witness_cross)
+  {
+      one_tangle = dvector(0, Nspins - 1);
+      concurrence = dmatrix(0, Nspins - 1, 0, Nspins - 1);
+      two_tangle = dvector(0, Nspins - 1);
+      q_T_count = 1;
+      for (int dimension = 0; dimension < Ndimensions; ++dimension)
+      {
+        q_T_count *= Nsymvalue[TransIds[dimension]];
+        q_T_count *= Trans_Qmax[dimension];
+      }
+      QFI = dvector(0, q_T_count * 3 - 1);
+  }
 
   return;
 }
@@ -1144,5 +1179,12 @@ void deallocate(struct FLAGS *input_flags)
       freekvector(S1exp, 0, Nspins * 3 - 1);
       freekmatrix(S2exp, 0, Nspins * 3 - 1, 0, Nspins * 3 - 1);
     }
+  if (input_flags->find_witness_exp || input_flags->find_witness_cross)
+  {
+      freedvector(one_tangle, 0, Nspins - 1);
+      freedmatrix(concurrence, 0, Nspins - 1, 0, Nspins - 1);
+      freedvector(two_tangle, 0, Nspins - 1);
+      freedvector(QFI, 0, q_T_count * 3 - 1);
+  }
   return;
 }

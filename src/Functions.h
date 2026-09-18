@@ -20,6 +20,7 @@ void WriteResults(long long, struct FLAGS *);
 void WriteCross(long long, long long *, long long, struct FLAGS *);
 void WriteS1exp(double, komplex *, struct FLAGS *);
 void WriteS2exp(double, komplex **, struct FLAGS *);
+void WriteWitexp(double, struct FLAGS *);
 void WriteMaggs(long long *);
 void ReadInputFlags(char *, struct FLAGS *);
 long long intro(struct FLAGS *);
@@ -87,6 +88,10 @@ komplex expect_value2(double (*)(int, unsigned long long*), int,
 double ApplySz(int, unsigned long long *);
 double ApplySp(int, unsigned long long *);
 double ApplySm(int, unsigned long long *);
+void one_tangle_exp(komplex *);
+void concurrence_exp(komplex *, komplex **);
+void two_tangle_exp(double **);
+void QFI_exp(komplex *, komplex **);
 
 // =============================================================================
 // Functions in RLsparse

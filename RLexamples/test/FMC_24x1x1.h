@@ -3,6 +3,8 @@ Zero_vec_length 0.000001
 Mode 0
 Unimode 0
 Mode 0
+Find_expect 1
+Find_witness_exp 1
 M start 0
 M end 0
 Number of spins 24
@@ -21,7 +23,7 @@ Construct symmetries 0
 Hardcoded symmetries 0
 Custom symmetry 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
 Custom symmetry 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 0
-Coupling strength vector -1 -1 0
+Coupling strength vector -1 -2 0
 Coupling vector 0 1 0
 Coupling vector 1 2 0
 Coupling vector 2 3 0

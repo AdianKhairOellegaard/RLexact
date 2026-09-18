@@ -1,6 +1,7 @@
 Ritz_conv 0.000001
 Zero_vec_length 0.000001
-Find_expect 1
+Find_expect 0
+Find_witness_exp 1
 TEST_EXPECT 0
 Mode 0
 Unimode 0

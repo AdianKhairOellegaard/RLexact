@@ -29,6 +29,15 @@ extern OrbitTable *otable;
 extern komplex *S1exp;
 extern komplex **S2exp;
 extern double cosine[], sine[], sqroot[];
+extern double *one_tangle, **concurrence, *two_tangle, *QFI;
+/*Only relevant for QFI calculation using expectation values*/
+extern long long q_T_count;
+extern long long *TransIds;
+extern long long Ndimensions, Nspins_in_uc;
+extern double **spin_positions;
+extern long long Nsymvalue[NSYM];
+extern long long Trans_Qmax[3];
+
 /* Output files */
 extern FILE *outfileexp;
 extern FILE *outfilewit;
@@ -83,7 +92,7 @@ void FindExpectationValues(OrbitTable *otable, CanonicalRep *canonical, int numc
     }
     
     /*Turn from S^+, S^- to S^x, S^y unless flagged otherwise*/
-    if ((!input_flags->find_expect_pm) && (!input_flags->m_sym))
+    if ((!input_flags->find_expect_pm || input_flags->find_witness_exp) && (!input_flags->m_sym))
     {   
         dummyS = kvector(0, Nspins * 3 - 1);
         memcpy(dummyS, S1exp, Nspins * 3 * sizeof(komplex));
@@ -95,7 +104,7 @@ void FindExpectationValues(OrbitTable *otable, CanonicalRep *canonical, int numc
         freekvector(dummyS, 0, Nspins * 3 - 1);
     }
     
-    if ((!input_flags->find_expect_pm) && (input_flags->m_sym))
+    if ((!input_flags->find_expect_pm || input_flags->find_witness_exp) && (input_flags->m_sym))
     {   
         for (int i = 0; i < Nspins; i++)
         {
@@ -209,7 +218,7 @@ void FindExpectationValues2(OrbitTable *otable, CanonicalPair *canonical2, int n
     }
 
     /*Turn from S^+, S^- to S^x, S^y unless flagged otherwise*/
-    if ((!input_flags->find_expect_pm))
+    if (!input_flags->find_expect_pm || input_flags->find_witness_exp)
     {   
         dummyS = kvector(0, 8);
         for (int i = 0; i < Nspins; i++)
@@ -535,4 +544,148 @@ double ApplySm(int p, unsigned long long* bitmap)
         fatalerror("Spin position index is outside the range of number of spins", (long long)p);
         return 0;
     }
+}
+
+//Entanglement witness functions based on expectation values.
+void one_tangle_exp(komplex *S1)
+{
+    for (int p = 0; p < Nspins; p++)
+    { 
+        if ((imag(S1[p*3 + 0]) > SMALL_NUMBER) || (imag(S1[p*3 + 1]) > SMALL_NUMBER) || (imag(S1[p*3 + 2]) > SMALL_NUMBER))
+            fatalerror("x,y and/or z expectation values have a significant imaginary component", p);
+        
+        one_tangle[p] = 1.0 - 4.0*(sqrabs(S1[p*3 + 0]) + sqrabs(S1[p*3 + 1]) + sqrabs(S1[p*3 + 2]));
+    }
+}
+
+void concurrence_exp(komplex *S1, komplex **S2)
+{
+    double res1;
+    double res2;
+    for (int i = 0; i < Nspins; i++)
+    {
+        for (int j = 0; j < Nspins; j++)
+        { 
+            res1 = abs(S2[i*3 + 0][j*3 + 0] - S2[i*3 + 1][j*3 + 1]) - (1.0 / 4.0) + real(S2[i*3 + 2][j*3 + 2]);
+            res2 = abs(S2[i*3 + 0][j*3 + 0] + S2[i*3 + 1][j*3 + 1]) - sqrt(sqrabs((1.0 / 4.0) + S2[i*3 + 2][j*3 + 2]) - sqrabs((S1[i*3 + 2] + S1[j*3 + 2]) / 2.0));
+
+            if ((res1 < 0) && (res2 < 0))
+                concurrence[i][j] = 0.0;
+            else if (res1 < res2)
+                concurrence[i][j] = 2.0 * res2;
+            else
+                concurrence[i][j] = 2.0 * res1;
+        }
+    }
+}
+
+void two_tangle_exp(double **C)
+{
+    for (int i = 0; i < Nspins; i++)
+    {
+        two_tangle[i] = 0;
+        for (int j = 0; j < Nspins; j++)
+        { 
+            if (i != j)
+                two_tangle[i] += C[i][j] * C[i][j];
+        }
+    }
+}
+
+// This function is really only for comparison and is a slow way of getting QFI. 
+// Instead use the dynamical correlation functions. But if find_cross is not used and find_expect is used, then this function is handy.
+void QFI_exp(komplex *S1, komplex **S2)
+{
+
+    if (S1 == NULL || S2 == NULL || QFI == NULL)
+        fatalerror("Invalid arguments passed to QFI_exp", 0);
+
+    long long q[NSYM];
+    long long nqvalue[NSYM];
+    for (int symmetry = 0; symmetry < Nsym; ++symmetry)
+    {
+        q[symmetry] = 0;
+        nqvalue[symmetry] = 1;
+    }
+    for (int dimension = 0; dimension < Ndimensions; ++dimension)
+    {
+        const int symmetry = TransIds[dimension];
+        nqvalue[symmetry] = Nsymvalue[symmetry] * Trans_Qmax[dimension];
+    }
+
+    komplex *phase_factor = (komplex *)malloc(Nspins * sizeof(komplex));
+    if (phase_factor == NULL)
+        fatalerror("Could not allocate QFI phase factors", Nspins);
+
+    for (long long q_index = 0; q_index < q_T_count; ++q_index)
+    {
+        bool zero_q = true;
+        for (int dimension = 0; dimension < Ndimensions; ++dimension)
+            if (q[TransIds[dimension]] != 0)
+                zero_q = false;
+
+        long long spin_index = 0;
+        for (long long x = 0; x < Nsymvalue[TransIds[X]]; ++x)
+        {
+            for (long long y = 0; y < Nsymvalue[TransIds[Y]]; ++y)
+            {
+                for (long long z = 0; z < Nsymvalue[TransIds[Z]]; ++z)
+                {
+                    for (long long unit_cell_spin = 0;
+                         unit_cell_spin < Nspins_in_uc;
+                         ++unit_cell_spin)
+                    {
+                        double phase = 0.0;
+                        const long long cell[3] = {x, y, z};
+                        for (int dimension = 0; dimension < Ndimensions; ++dimension)
+                        {
+                            const long long symmetry = TransIds[dimension];
+                            phase += q[symmetry] *
+                                     (cell[dimension] +
+                                      spin_positions[unit_cell_spin][dimension]) /
+                                     Nsymvalue[symmetry];
+                        }
+                        phase_factor[spin_index++] = exp(I * 2.0 * PI * phase);
+                    }
+                }
+            }
+        }
+
+        komplex sq[3] = {zero, zero, zero};
+        if (zero_q)
+        {
+            for (long long i = 0; i < Nspins; ++i)
+                for (int alpha = 0; alpha < 3; ++alpha)
+                    sq[alpha] += S1[i * 3 + alpha];
+        }
+
+        komplex sq_corr[3] = {zero, zero, zero};
+        for (long long i = 0; i < Nspins; ++i)
+        {
+            for (long long j = 0; j < Nspins; ++j)
+            {
+                const komplex phase = conj(phase_factor[i]) * phase_factor[j];
+                for (int alpha = 0; alpha < 3; ++alpha)
+                    sq_corr[alpha] += phase * S2[i * 3 + alpha][j * 3 + alpha];
+            }
+        }
+
+        for (int alpha = 0; alpha < 3; ++alpha)
+        {
+            sq[alpha] /= sqrt((double)Nspins);
+            sq_corr[alpha] /= (double)Nspins;
+            QFI[q_index * 3 + alpha] =
+                4.0 * (real(sq_corr[alpha]) - sqrabs(sq[alpha]));
+        }
+
+        for (int dimension = 0; dimension < Ndimensions; ++dimension)
+        {
+            const int symmetry = TransIds[dimension];
+            if (++q[symmetry] < nqvalue[symmetry])
+                break;
+            q[symmetry] = 0;
+        }
+    }
+
+    free(phase_factor);
 }
