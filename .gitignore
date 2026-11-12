@@ -11,12 +11,9 @@
 # *.smp
 # *.spm
 
-RLexamples/*/*.szz
-RLexamples/*/*.sxx
-RLexamples/*/*.syy
-RLexamples/*/*.log
-RLexamples/*/*.dat
-
+/RLexamples/
+/tests/
+/test_anisotropy.h
 # Prerequisites
 *.d
 
