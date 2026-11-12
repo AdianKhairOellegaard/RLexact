@@ -5,8 +5,8 @@ Ritz_conv 0.000000001 //Lanczos precision
 random_number_seed 42 //Number that seeds the random number generator. Should be decommented in real life!
 Mode 0 //Perl magic for old cluster routines
 Unimode 0
-find_expect 0
-find_witness_exp 1
+find_expect 1
+find_witness 1
 TEST_EXPECT 0
 Number of spins 18
 Number of spins in unit cell 3
@@ -68,11 +68,11 @@ Custom symmetry 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17//Identity
 Custom symmetry 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17//TransX
 Custom symmetry 15 16 17 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14//TransY
 Translation indices 1 2 //Which symmetries are translations?
-Qmax translation 1 2 1 //How many extra translations in each direction?
+Qmax translation 1 1 1 //How many extra translations in each direction?
 Number of dimensions 2
 Number of Chosen GS q-values 0 //0 means search for all
 //Chosen GS q-value 0 1 1
 Construct symmetries 0 //Leftover from MakeSymCoup(). Needed for program to run
                        //Ask Kim if should be removed from RLio.C/RLsymm.C/...
 M start 0
-M end 3
+M end 0

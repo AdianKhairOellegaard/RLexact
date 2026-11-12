@@ -1,6 +1,6 @@
-/* Program file RLcross.C -
+/* Program file RLexpect.C -
  * Contains functions for calculating local spin operator expectation values
- * Last change: AKOE 04.09.2026
+ * Last change: AKOE 18.09.2026
  *
  ============================================
  *
@@ -16,6 +16,7 @@
 #include <strings.h>
 #include <string.h>
 #include <stdio.h>
+#include <limits.h>
 #include "Functions.h"
 
 /* Functions defined in this file */
@@ -23,6 +24,8 @@
 /* Global variables defined in RLexact.c */
 extern long long Nspins, Nsymops, Nsym, Nunique, Nsymvalue[NSYM];
 extern long long *Nocc, q_gs[NSYM];
+extern double *energies;
+extern double gs_energy;
 extern unsigned long long *unique;
 extern komplex *gs;
 extern OrbitTable *otable;
@@ -45,8 +48,8 @@ extern FILE *outfilewit;
 /* Regional variables defined in this file */
 unsigned long long maskN, maskp, outvec;
 
-/* Finds 1 spin Expectation values of the system*/
-void FindExpectationValues(OrbitTable *otable, CanonicalRep *canonical, int numcanonical, struct FLAGS *input_flags)
+/* Finds 1 spin expectation values of the system*/
+void FindExpectationSingle(OrbitTable *otable, CanonicalSingle *canonical, int numcanonical, struct FLAGS *input_flags)
 {
     komplex expectation_value;
     long long p, alpha;
@@ -82,7 +85,7 @@ void FindExpectationValues(OrbitTable *otable, CanonicalRep *canonical, int numc
         if (input_flags->m_sym && m_zero_exp != 0)
             expectation_value = 0;
         else
-            expectation_value = expect_value(op, p, input_flags);
+            expectation_value = expect_single(op, p, input_flags);
 
         for (long long symcom_count = 0; symcom_count < Nsymops; symcom_count++)
         {
@@ -92,30 +95,33 @@ void FindExpectationValues(OrbitTable *otable, CanonicalRep *canonical, int numc
     }
     
     /*Turn from S^+, S^- to S^x, S^y unless flagged otherwise*/
-    if ((!input_flags->find_expect_pm || input_flags->find_witness_exp) && (!input_flags->m_sym))
-    {   
-        dummyS = kvector(0, Nspins * 3 - 1);
-        memcpy(dummyS, S1exp, Nspins * 3 * sizeof(komplex));
-        for (int i = 0; i < Nspins; i++)
+    if (!input_flags->find_expect_pm || input_flags->find_witness)
+    { 
+        if  (!input_flags->m_sym)
         {
-            S1exp[i*3 + 0] = (dummyS[i*3 + 0] + dummyS[i*3 + 1]) / 2.0;
-            S1exp[i*3 + 1] = (dummyS[i*3 + 0] - dummyS[i*3 + 1]) / (2.0 * I);
+            dummyS = kvector(0, Nspins * 3 - 1);
+            memcpy(dummyS, S1exp, Nspins * 3 * sizeof(komplex));
+            for (int i = 0; i < Nspins; i++)
+            {
+                S1exp[i*3 + 0] = (dummyS[i*3 + 0] + dummyS[i*3 + 1]) / 2.0;
+                S1exp[i*3 + 1] = (dummyS[i*3 + 0] - dummyS[i*3 + 1]) / (2.0 * I);
+            }
+            freekvector(dummyS, 0, Nspins * 3 - 1);
         }
-        freekvector(dummyS, 0, Nspins * 3 - 1);
+        else
+        {
+            for (int i = 0; i < Nspins; i++)
+            {
+                S1exp[i*3 + 0] = 0;
+                S1exp[i*3 + 1] = 0;
+            }
+        }
+        
     }
-    
-    if ((!input_flags->find_expect_pm || input_flags->find_witness_exp) && (input_flags->m_sym))
-    {   
-        for (int i = 0; i < Nspins; i++)
-        {
-            S1exp[i*3 + 0] = S1exp[i*3 + 2];
-            S1exp[i*3 + 1] = S1exp[i*3 + 2];
-        }
-    }   
 }
 
 /* Finds 2 spin expectation values of the system*/
-void FindExpectationValues2(OrbitTable *otable, CanonicalPair *canonical2, int numcanonical2, struct FLAGS *input_flags)
+void FindExpectationPair(OrbitTable *otable, CanonicalPair *canonical2, int numcanonical2, struct FLAGS *input_flags)
 {
     komplex expectation_value;
     long long p1, alpha1, p2, alpha2;
@@ -194,20 +200,20 @@ void FindExpectationValues2(OrbitTable *otable, CanonicalPair *canonical2, int n
                 fatalerror("The canonical pair does not have valid spin values", 3 * alpha1 + alpha2);
         }
         //Expectation value calculation logic
-        no_exp_calc = (input_flags->find_witness_exp && !input_flags->find_expect && exp_wit != 0);
+        no_exp_calc = (input_flags->find_witness && !input_flags->find_expect && exp_wit != 0);
         if (input_flags->m_sym)
         {
             if (m_zero_exp != 0)
                 expectation_value = 0;
             else
-                expectation_value = expect_value2(op1, p1, op2, p2, input_flags);
+                expectation_value = expect_pair(op1, p1, op2, p2, input_flags);
         }
         else
         {
             if (no_exp_calc)
-                expectation_value = 0; //avoids unecessary expectation value calculations if only the entanglement witnesses are required. Supposes that no canonicals orbit from z,(+,-) to (+-),(-+) which is valid.
+                expectation_value = 0; //avoids unecessary expectation value calculations if only the entanglement witnesses are required.
             else
-                expectation_value = expect_value2(op1, p1, op2, p2, input_flags);
+                expectation_value = expect_pair(op1, p1, op2, p2, input_flags);
         }
         for (long long symcom_count = 0; symcom_count < Nsymops; symcom_count++)
         {
@@ -218,7 +224,7 @@ void FindExpectationValues2(OrbitTable *otable, CanonicalPair *canonical2, int n
     }
 
     /*Turn from S^+, S^- to S^x, S^y unless flagged otherwise*/
-    if (!input_flags->find_expect_pm || input_flags->find_witness_exp)
+    if (!input_flags->find_expect_pm || input_flags->find_witness)
     {   
         dummyS = kvector(0, 8);
         for (int i = 0; i < Nspins; i++)
@@ -252,9 +258,11 @@ void FindExpectationValues2(OrbitTable *otable, CanonicalPair *canonical2, int n
 
 }
 
-
-/* Builds symmetry orbits used to simplify local expectation value calculations, set to X, Y and Z but can easily be changed to +,-,Z if required  */
-void BuildOrbitTable(OrbitTable *otable, CanonicalRep *canonical, int *numcanonical, struct FLAGS *input_flags)
+//-----------------------
+/* Builds orbit table and the canonical lists for expectation values. */
+void BuildOrbits(OrbitTable *otable, CanonicalSingle *canonical, int *numcanonical,
+                            CanonicalPair *canonical2, int *numcanonical2,
+                            struct FLAGS *input_flags)
 {
     long long symcom_count, spin_count, sym = 0;
     long long p_new, alpha_new;
@@ -263,22 +271,22 @@ void BuildOrbitTable(OrbitTable *otable, CanonicalRep *canonical, int *numcanoni
     unsigned long long state, new_state;
     *numcanonical = 0;
     maskN = (((unsigned long long)1) << Nspins) - 1;
-    int *single_visit = (int *)calloc(Nspins * 3, sizeof(*single_visit));
+    bool *single_visit = (bool *)calloc(Nspins * 3, sizeof(bool));
 
     if (single_visit == NULL)
     {
         fatalerror("Could not allocate single_visit", Nspins);
     }
-
+    //Build orbit table and single operator canonical list
     for (int p = 0; p < Nspins; ++p)
     {
         for (int alpha = 0; alpha < 3; ++alpha)
         {
             // Keep canonical representatives unique, but populate orbit entries for every operator.
             if (!single_visit[p * 3 + alpha])
-                canonical[(*numcanonical)++] = (CanonicalRep){p, alpha};
+                canonical[(*numcanonical)++] = (CanonicalSingle){p, alpha};
             
-            state = ((unsigned long long)1) << p;
+            state = SPIN_0_UP << p;
             symcom_count = 0;
             // Now, loop over all symmetry operations to mark the canonicals entire orbit.
             TLOOP_BEGIN
@@ -311,10 +319,8 @@ void BuildOrbitTable(OrbitTable *otable, CanonicalRep *canonical, int *numcanoni
         }
     }
     free(single_visit);
-}
 
-void BuildCanonicalPairList(CanonicalPair *canonical2, int *numcanonical2, struct FLAGS *input_flags)
-{
+    //Build pair operator canonical list.
     const long long operator_count = Nspins * 3;
     const long long pair_count = operator_count * operator_count;
     bool *visited = (bool *)calloc(pair_count, sizeof(bool));
@@ -345,13 +351,6 @@ void BuildCanonicalPairList(CanonicalPair *canonical2, int *numcanonical2, struc
                         long long target_idx =
                         (first->target_site * 3 + first->target_alpha) * operator_count
                         + second->target_site * 3 + second->target_alpha;
-                        //if (first->target_site < 0 || first->target_site >= Nspins ||
-                        //    first->target_alpha < 0 || first->target_alpha >= 3 ||
-                        //    second->target_site < 0 || second->target_site >= Nspins ||
-                        //    second->target_alpha < 0 || second->target_alpha >= 3)
-                        //{
-                        //    fatalerror("Invalid transformed pair in orbit table", target_idx);
-                        //}
                         visited[target_idx] = true;
                     }
                 }
@@ -360,8 +359,6 @@ void BuildCanonicalPairList(CanonicalPair *canonical2, int *numcanonical2, struc
     }
     free(visited);
 }
-
-
 
 //Function for retrieving array index in the flat orbit table
 inline long long get_orbit_idx(int p, int alpha, long long symcom_id)
@@ -391,8 +388,9 @@ inline const OrbitTable* get_orbit_element(const OrbitTable* table, int p, int a
     return &table[idx];
 }
 
+//-----------------------
 /* Expectation value function for any local operator that mutates bitmaps cleanly <gs| Op_p |gs>*/
-komplex expect_value(double (*Op)(int, unsigned long long*), int p, struct FLAGS *input_flags)
+komplex expect_single(double (*Op)(int, unsigned long long*), int p, struct FLAGS *input_flags)
 {
     long long symcom_count, sym = 0;
     long long l;
@@ -416,17 +414,27 @@ komplex expect_value(double (*Op)(int, unsigned long long*), int p, struct FLAGS
         operation_value = Op(p, &op_state);
         if (operation_value != 0)
         {
-            u = FindUnique(op_state, d_T, input_flags);
-            l = LookUpU(u, input_flags);
-
-            if (abs(gs[l]) != 0)//(abs(gs[l]) >= SMALL_NUMBER)
+            phase = 0.0;
+            if (op_state == new_state)
             {
-                phase = 0.0;
                 for (int j = 0; j < Nsym; ++j)
+                    {
+                        phase -= 2.0 * q_gs[j] * T[j] / Nsymvalue[j];
+                    }
+                    fac += ((komplex)operation_value) * conj(gs[i]) * sqroot[Nocc[i]] * exp(2.0 * I * PI * phase);
+            }
+            else
+            {
+                u = FindUnique(op_state, d_T, input_flags);
+                l = LookUpU(u, input_flags);
+                if (abs(gs[l]) != 0)//(abs(gs[l]) >= SMALL_NUMBER)
                 {
-                    phase += 1.0 * q_gs[j] * (d_T[j] - T[j]) / Nsymvalue[j];
+                    for (int j = 0; j < Nsym; ++j)
+                    {
+                        phase += 1.0 * q_gs[j] * (d_T[j] - T[j]) / Nsymvalue[j];
+                    }
+                    fac += ((komplex)operation_value) * conj(gs[l]) * sqroot[Nocc[l]] * exp(2.0 * I * PI * phase);
                 }
-                fac += ((komplex)operation_value) * conj(gs[l]) * sqroot[Nocc[l]] * exp(2.0 * I * PI * phase);
             }
         }
         TLOOP_END
@@ -436,7 +444,7 @@ komplex expect_value(double (*Op)(int, unsigned long long*), int p, struct FLAGS
 }
 
 /* Expectation value of a product of two local operators: <gs| Op1_p1 Op2_p2 |gs> */
-komplex expect_value2(double (*Op1)(int, unsigned long long*), int p1,
+komplex expect_pair(double (*Op1)(int, unsigned long long*), int p1,
                       double (*Op2)(int, unsigned long long*), int p2,
                       struct FLAGS *input_flags)
 {
@@ -466,17 +474,27 @@ komplex expect_value2(double (*Op1)(int, unsigned long long*), int p1,
             operation_value = val1 * val2;
             if (operation_value != 0)
             {
-                u = FindUnique(op_state, d_T, input_flags);
-                l = LookUpU(u, input_flags);
-
-                if (abs(gs[l]) != 0)
+                phase = 0.0;
+                if (op_state == new_state) //Ensures that FindUnique and LookUpU, which are computationally expensive, are not called uncessecarily.
                 {
-                    phase = 0.0;
                     for (int j = 0; j < Nsym; ++j)
                     {
-                        phase += 1.0 * q_gs[j] * (d_T[j] - T[j]) / Nsymvalue[j];
+                        phase -= 2.0 * q_gs[j] * T[j] / Nsymvalue[j];
                     }
-                    fac += ((komplex)operation_value) * conj(gs[l]) * sqroot[Nocc[l]] * exp(2.0 * I * PI * phase);
+                    fac += ((komplex)operation_value) * conj(gs[i]) * sqroot[Nocc[i]] * exp(2.0 * I * PI * phase);
+                }
+                else
+                {
+                    u = FindUnique(op_state, d_T, input_flags);
+                    l = LookUpU(u, input_flags);
+                    if (abs(gs[l]) != 0)
+                    {
+                        for (int j = 0; j < Nsym; ++j)
+                        {
+                            phase += 1.0 * q_gs[j] * (d_T[j] - T[j]) / Nsymvalue[j];
+                        }
+                        fac += ((komplex)operation_value) * conj(gs[l]) * sqroot[Nocc[l]] * exp(2.0 * I * PI * phase);
+                    }
                 }
             }
         }
@@ -493,7 +511,7 @@ double ApplySz(int p, unsigned long long* bitmap)
 {
     if (p >= 0 && p < Nspins)
     {
-        maskp = ((unsigned long long)1) << p;
+        maskp = SPIN_0_UP << p;
         double spin_value = (2 * ((*bitmap & maskp) != 0) - 1) / 2.0;
         return spin_value;
     }
@@ -509,7 +527,7 @@ double ApplySp(int p, unsigned long long* bitmap)
 {
     if (p >= 0 && p < Nspins)
     {
-        maskp = ((unsigned long long)1) << p;
+        maskp = SPIN_0_UP << p;
 
         if ((*bitmap & maskp) == 0)
         {
@@ -530,7 +548,7 @@ double ApplySm(int p, unsigned long long* bitmap)
 {
     if (p >= 0 && p < Nspins)
     {
-        maskp = ((unsigned long long)1) << p;
+        maskp = SPIN_0_UP << p;
 
         if ((*bitmap & maskp) != 0)
         {
@@ -546,7 +564,8 @@ double ApplySm(int p, unsigned long long* bitmap)
     }
 }
 
-//Entanglement witness functions based on expectation values.
+//-----------------------
+/*Entanglement witness functions based on expectation values.*/
 void one_tangle_exp(komplex *S1)
 {
     for (int p = 0; p < Nspins; p++)
@@ -592,13 +611,16 @@ void two_tangle_exp(double **C)
     }
 }
 
-// This function is really only for comparison and is a slow way of getting QFI. 
-// Instead use the dynamical correlation functions. But if find_cross is not used and find_expect is used, then this function is handy.
+// Note this entanglement witness is the most compersome to get from local expectation values
+// and we can in fact get it with good accuracy using the cross sections if they are found by RLexact.
 void QFI_exp(komplex *S1, komplex **S2)
 {
 
     if (S1 == NULL || S2 == NULL || QFI == NULL)
         fatalerror("Invalid arguments passed to QFI_exp", 0);
+    if (Nspins <= 0 || Nspins_in_uc <= 0 || Nspins_in_uc > Nspins ||
+        Nspins > (long long)(CHAR_BIT * sizeof(unsigned long long)))
+        fatalerror("Invalid spin count for QFI translation mapping", Nspins);
 
     long long q[NSYM];
     long long nqvalue[NSYM];
@@ -617,59 +639,76 @@ void QFI_exp(komplex *S1, komplex **S2)
     if (phase_factor == NULL)
         fatalerror("Could not allocate QFI phase factors", Nspins);
 
-    for (long long q_index = 0; q_index < q_T_count; ++q_index)
+    double (*positions)[3] = (double (*)[3])calloc(Nspins, sizeof(*positions));
+    bool *visited = (bool *)calloc(Nspins, sizeof(bool));
+    if (positions == NULL || visited == NULL)
+        fatalerror("Could not allocate QFI spin positions", Nspins);
+    // Follow the same translation permutations as ApplySzq and ApplySmp.
+    for (long long unit_cell_spin = 0; unit_cell_spin < Nspins_in_uc; ++unit_cell_spin)
     {
-        bool zero_q = true;
-        for (int dimension = 0; dimension < Ndimensions; ++dimension)
-            if (q[TransIds[dimension]] != 0)
-                zero_q = false;
-
-        long long spin_index = 0;
+        unsigned long long state = ((unsigned long long)1) << unit_cell_spin;
         for (long long x = 0; x < Nsymvalue[TransIds[X]]; ++x)
         {
             for (long long y = 0; y < Nsymvalue[TransIds[Y]]; ++y)
             {
                 for (long long z = 0; z < Nsymvalue[TransIds[Z]]; ++z)
                 {
-                    for (long long unit_cell_spin = 0;
-                         unit_cell_spin < Nspins_in_uc;
-                         ++unit_cell_spin)
-                    {
-                        double phase = 0.0;
-                        const long long cell[3] = {x, y, z};
-                        for (int dimension = 0; dimension < Ndimensions; ++dimension)
-                        {
-                            const long long symmetry = TransIds[dimension];
-                            phase += q[symmetry] *
-                                     (cell[dimension] +
-                                      spin_positions[unit_cell_spin][dimension]) /
-                                     Nsymvalue[symmetry];
-                        }
-                        phase_factor[spin_index++] = exp(I * 2.0 * PI * phase);
-                    }
+                    if (state == 0 || (state & (state - 1)) != 0)
+                        fatalerror("QFI translation does not map a single spin to a single spin", unit_cell_spin);
+                    long long spin_index = 0;
+                    while (((state >> spin_index) & 1ULL) == 0)
+                        ++spin_index;
+                    if (spin_index >= Nspins || visited[spin_index])
+                        fatalerror("Invalid or repeated spin in QFI translation mapping", spin_index);
+                    visited[spin_index] = true;
+                    const long long cell[3] = {x, y, z};
+                    for (int dimension = 0; dimension < Ndimensions; ++dimension)
+                        positions[spin_index][dimension] = cell[dimension] + spin_positions[unit_cell_spin][dimension];
+
+                    if (Ndimensions == 3)
+                        state = SymOp(TransIds[Z], state);
                 }
+                if (Ndimensions >= 2)
+                    state = SymOp(TransIds[Y], state);
             }
+            if (Ndimensions >= 1)
+                state = SymOp(TransIds[X], state);
+        }
+    }
+    for (long long i = 0; i < Nspins; ++i)
+        if (!visited[i])
+            fatalerror("Spin missing from QFI translation mapping", i);
+    free(visited);
+
+    for (long long q_index = 0; q_index < q_T_count; ++q_index)
+    {
+        for (long long spin_index = 0; spin_index < Nspins; ++spin_index)
+        {
+            double phase = 0.0;
+            for (int dimension = 0; dimension < Ndimensions; ++dimension)
+            {
+                const long long symmetry = TransIds[dimension];
+                phase += q[symmetry] * positions[spin_index][dimension] /
+                         Nsymvalue[symmetry];
+            }
+            phase_factor[spin_index] = exp(I * 2.0 * PI * phase);
         }
 
         komplex sq[3] = {zero, zero, zero};
-        if (zero_q)
-        {
-            for (long long i = 0; i < Nspins; ++i)
-                for (int alpha = 0; alpha < 3; ++alpha)
-                    sq[alpha] += S1[i * 3 + alpha];
-        }
+        for (long long i = 0; i < Nspins; ++i)
+            for (int alpha = 0; alpha < 3; ++alpha)
+                sq[alpha] += phase_factor[i] * S1[i * 3 + alpha];
 
         komplex sq_corr[3] = {zero, zero, zero};
         for (long long i = 0; i < Nspins; ++i)
         {
             for (long long j = 0; j < Nspins; ++j)
             {
-                const komplex phase = conj(phase_factor[i]) * phase_factor[j];
+                const komplex phase = conj(phase_factor[j]) * phase_factor[i];
                 for (int alpha = 0; alpha < 3; ++alpha)
                     sq_corr[alpha] += phase * S2[i * 3 + alpha][j * 3 + alpha];
             }
         }
-
         for (int alpha = 0; alpha < 3; ++alpha)
         {
             sq[alpha] /= sqrt((double)Nspins);
@@ -688,4 +727,19 @@ void QFI_exp(komplex *S1, komplex **S2)
     }
 
     free(phase_factor);
+    free(positions);
+}
+// QFI found using cross sections, excluding the ground-state cross section.
+double QFI_cross(long long *Nener, double *cross)
+{
+    if (Nener == NULL || cross == NULL || energies == NULL)
+        fatalerror("Invalid arguments passed to QFI_cross", 0);
+
+    double crosssum = 0.0;
+    for (long long i = 0; i < *Nener; i++)
+    {
+        if (energies[i] - gs_energy > SMALL_NUMBER)
+           crosssum += cross[i];
+    }
+    return 2.0 * crosssum / PI;
 }

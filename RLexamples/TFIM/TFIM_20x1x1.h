@@ -2,8 +2,11 @@ Ritz_conv 0.000001
 Zero_vec_length 0.000001
 Mode 0
 Unimode 0
+VERBOSE_TIME_LV1 1
 M_Symmetry 0
 Find_cross 1
+Find_expect 1
+Find_witness 1
 H start 0.1
 H end 0.9
 H step 0.4
@@ -23,7 +26,6 @@ Translation vector 1
 Qmax translation 1 1 1
 Number of dimensions 1
 Relative position 0 0 0
-Relative position 1 0 0
 Custom symmetry 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19
 Custom symmetry 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 0
 Coupling strength vector -1 0 0

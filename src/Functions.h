@@ -9,6 +9,7 @@
 // =============================================================================
 void Solve_Lanczos(struct FLAGS *);
 void Solve_Matrix(struct FLAGS *);
+void Solve_ExpWit(double, struct FLAGS *);
 void allocate(struct FLAGS *);
 void deallocate(struct FLAGS *);
 
@@ -75,15 +76,15 @@ void ApplySmp(long long *, long long, komplex *, struct FLAGS *);
 // =============================================================================
 // Functions in RLexpect
 // =============================================================================
-void FindExpectationValues(OrbitTable *, CanonicalRep *, int, struct FLAGS *);
-void FindExpectationValues2(OrbitTable *, CanonicalPair *, int, struct FLAGS *);
-void BuildOrbitTable(OrbitTable *, CanonicalRep *, int *, struct FLAGS *);
-void BuildCanonicalPairList(CanonicalPair *, int *, struct FLAGS *);
+void FindExpectationSingle(OrbitTable *, CanonicalSingle *, int, struct FLAGS *);
+void FindExpectationPair(OrbitTable *, CanonicalPair *, int, struct FLAGS *);
+void BuildOrbits(OrbitTable *, CanonicalSingle *, int *, CanonicalPair *, int *,
+                           struct FLAGS *);
 inline long long get_orbit_idx(int, int, long long);
 inline void store_orbit_element(OrbitTable *, int, int, long long, int, int, komplex);
 inline const OrbitTable* get_orbit_element(const OrbitTable *, int, int, long long);
-komplex expect_value(double (*)(int, unsigned long long*), int, struct FLAGS *);
-komplex expect_value2(double (*)(int, unsigned long long*), int,
+komplex expect_single(double (*)(int, unsigned long long*), int, struct FLAGS *);
+komplex expect_pair(double (*)(int, unsigned long long*), int,
                        double (*)(int, unsigned long long*), int, struct FLAGS *);
 double ApplySz(int, unsigned long long *);
 double ApplySp(int, unsigned long long *);
@@ -92,6 +93,7 @@ void one_tangle_exp(komplex *);
 void concurrence_exp(komplex *, komplex **);
 void two_tangle_exp(double **);
 void QFI_exp(komplex *, komplex **);
+double QFI_cross(long long *, double *);
 
 // =============================================================================
 // Functions in RLsparse

@@ -139,7 +139,7 @@ int spinflip_present; // This is 1 is spinflip is present and 0 if it is not.
 int spinflip_number;  /* If spin flip symmetry is present this has a value equal the corresponding index in the symmetry list; otherwise -1 */
 int spinflip_GSvalue; /* If spin flip symmetry is present, this is its value in the Ground State */
 /* Orbit table, dynamically allocated */
-CanonicalRep *canonical;
+CanonicalSingle *canonical;
 CanonicalPair *canonical2;
 OrbitTable *otable;
 /* Single-site and pair site expectation values, dynamically allocated */
@@ -148,8 +148,6 @@ komplex **S2exp;
 /* Orbit table and expectation value variables */
 int numcanonical;
 int numcanonical2;
-double global_gs_energy;
-long long global_twom;
 /* Entanglement Witness variables*/
 double *one_tangle;
 double **concurrence;
@@ -196,13 +194,11 @@ int main(int argc, char *argv[])
 
   time_t time_total, time_single0, time_single, time_single2;
   infile_name = (char *)malloc(30 * sizeof(char));
-
   if (argc > 1)
   {
     infile_name = argv[1];
     name_on_commandline = true;
   }
-
   if (intro(&input_flags) == -1)
     return 1;
   if (!input_flags.motive)
@@ -341,12 +337,15 @@ int main(int argc, char *argv[])
     time_stamp(&time_single, STOP, "Longest_Matrix allocated ");
 
   //AKOE: Builds orbits for expectations values.
-  if (input_flags.find_expect || input_flags.find_witness_exp || input_flags.find_witness_cross)
+  if (input_flags.find_expect || input_flags.find_witness)
   {
     if (mode == MODEN && rank == 0)
     {
-      BuildOrbitTable(otable, canonical, &numcanonical, &input_flags);
-      BuildCanonicalPairList(canonical2, &numcanonical2, &input_flags);
+      if (input_flags.VERBOSE_TIME_LV1)
+        time_stamp(&time_single, START, "building orbit table and lists of canonicals");
+      
+      BuildOrbits(otable, canonical, &numcanonical,
+                             canonical2, &numcanonical2, &input_flags);
       if (input_flags.TEST_EXPECT)
       {
         fprintf(logfile, "Canonical Representatives (%d):\n", numcanonical + numcanonical2);
@@ -362,14 +361,13 @@ int main(int argc, char *argv[])
         }
         fflush(logfile);
       }
+      if (input_flags.VERBOSE_TIME_LV1)
+        time_stamp(&time_single, STOP, "building orbit tables");
     }
   }
   if (input_flags.m_sym)
   {
     // LogMessageChar("M_SYM encountered \n");
-    global_gs_energy = LARGE_NUMBER;
-    global_twom = 0;
-
     for (twom = (long long)(2 * mstart); twom <= (long long)(2 * mend); twom = twom + 2)
     {
 
@@ -422,10 +420,9 @@ int main(int argc, char *argv[])
         }
 
         // Snapshot this m-sector if it holds the lowest energy seen so far,
-        if ((rank == 0) && (input_flags.find_expect || input_flags.find_witness_exp || input_flags.find_witness_cross) && (mode == MODEN) && (gs_energy < global_gs_energy))
+        if ((rank == 0) && (input_flags.find_expect || input_flags.find_witness) && (mode == MODEN))
         {
-          global_gs_energy = gs_energy;
-          global_twom = twom;
+          Solve_ExpWit(twom / 2.0, &input_flags);
         }
 
         if (input_flags.VERBOSE_TIME_LV1)
@@ -433,40 +430,6 @@ int main(int argc, char *argv[])
           time_stamp(&time_single0, STOP, "one m/h ");
           LogMessageChar("\n");
         }
-      }
-    }
-    if ((rank == 0) && (mode == MODEN))
-    {
-      if (input_flags.find_expect || input_flags.find_witness_exp)
-      {
-        fprintf(stdout,"Diagonalization is complete. Calculating expectation values/entanglement witnesses from ground state. \n");
-        // Restore the global (cross-m) ground state before computing expectation values
-        if (twom - 2 != global_twom)
-        {
-          Nunique = FillUnique(global_twom, 0, &input_flags);
-          FillUniqueObservables(&input_flags);
-        }
-        LogMessageChar("\n");
-        time_stamp(&time_single0, START, "expectation value/entanglement witness process: ");
-        BuildCycle(q_gs, &input_flags);
-        if (input_flags.TEST_EXPECT)
-              LogMessageGS(&input_flags);
-        FindExpectationValues(otable, canonical, numcanonical, &input_flags);
-        FindExpectationValues2(otable, canonical2, numcanonical2, &input_flags);
-        if (input_flags.find_expect)
-        {
-          WriteS1exp(twom/2.0, S1exp, &input_flags);
-          WriteS2exp(twom/2.0, S2exp, &input_flags);
-        }
-        if (input_flags.find_witness_exp)
-        {
-          one_tangle_exp(S1exp);
-          concurrence_exp(S1exp, S2exp);
-          two_tangle_exp(concurrence);
-          QFI_exp(S1exp, S2exp);
-          WriteWitexp(twom / 2.0, &input_flags);
-        }
-        time_stamp(&time_single0, STOP, "expectation value/entanglement witness process is");
       }
     }
   }
@@ -532,30 +495,9 @@ int main(int argc, char *argv[])
         }
         if ((rank == 0) && (mode == MODEN))
         {
-          if (input_flags.find_expect || input_flags.find_witness_exp)
+          if (input_flags.find_expect || input_flags.find_witness)
           {
-            //fprintf(stdout,"Diagonalization is complete. Calculating expectation values/entanglement witnesses of ground state. \n");
-            LogMessageChar("\n");
-            time_stamp(&time_single0, START, "expectation value/entanglement witness process for one h ");
-            BuildCycle(q_gs, &input_flags);
-            if (input_flags.TEST_EXPECT)
-              LogMessageGS(&input_flags);
-            FindExpectationValues(otable, canonical, numcanonical, &input_flags);
-            FindExpectationValues2(otable, canonical2, numcanonical2, &input_flags);
-            if (input_flags.find_expect)
-            {
-              WriteS1exp(h, S1exp, &input_flags);
-              WriteS2exp(h, S2exp, &input_flags);
-            }
-            if (input_flags.find_witness_exp)
-            {
-              one_tangle_exp(S1exp);
-              concurrence_exp(S1exp, S2exp);
-              two_tangle_exp(concurrence);
-              QFI_exp(S1exp, S2exp);
-              WriteWitexp(h, &input_flags);
-            }
-            time_stamp(&time_single0, STOP, "expectation value/entanglement witness process particular h is");
+            Solve_ExpWit(h, &input_flags);
           }
         }
       }
@@ -1028,6 +970,47 @@ void Solve_Matrix(struct FLAGS *input_flags)
 }
 
 //----------------------------
+void Solve_ExpWit(double hm, struct FLAGS *input_flags)
+{
+  //Main routine for calculating the expectation values and entanglement witnesses
+  
+  time_t time_single;
+  if (input_flags->m_sym)
+    fprintf(stdout,"Diagonalization is complete at m = %lld. Calculating expectation values/entanglement witnesses of ground state. \n", twom/2);
+  else
+    fprintf(stdout,"Diagonalization is complete at h = %f. Calculating expectation values/entanglement witnesses of ground state. \n", h);
+
+  if (input_flags->VERBOSE_TIME_LV1)
+    time_stamp(&time_single, START, "calculating expectation values / entanglement witnesses");
+
+  BuildCycle(q_gs, input_flags);
+ 
+  if (input_flags->TEST_EXPECT)
+    LogMessageGS(input_flags);
+
+  FindExpectationSingle(otable, canonical, numcanonical, input_flags);
+  FindExpectationPair(otable, canonical2, numcanonical2, input_flags);
+
+  if (input_flags->find_expect)
+  {
+    WriteS1exp(hm, S1exp, input_flags);
+    WriteS2exp(hm, S2exp, input_flags);
+  }
+
+  if (input_flags->find_witness)
+  {
+    one_tangle_exp(S1exp);
+    concurrence_exp(S1exp, S2exp);
+    two_tangle_exp(concurrence);
+    QFI_exp(S1exp, S2exp);
+    WriteWitexp(hm, input_flags);
+  }
+
+  if (input_flags->VERBOSE_TIME_LV1)
+    time_stamp(&time_single, STOP, "calculating expectation values / entanglement witnesses");
+}
+
+//----------------------------
 
 void allocate(struct FLAGS *input_flags)
 {
@@ -1095,15 +1078,15 @@ void allocate(struct FLAGS *input_flags)
       cross = dvector(1, Nunique);
   }
   
-  if (input_flags->find_expect || input_flags->find_witness_exp || input_flags->find_witness_cross)
+  if (input_flags->find_expect || input_flags->find_witness)
     {
-      canonical = (CanonicalRep*)malloc(Nspins * 3 * sizeof(CanonicalRep));
+      canonical = (CanonicalSingle*)malloc(Nspins * 3 * sizeof(CanonicalSingle));
       canonical2 = (CanonicalPair*)malloc((Nspins * 3) * (Nspins * 3) * sizeof(CanonicalPair));
       otable = (OrbitTable*)malloc(Nspins * 3 * Nsymops * sizeof(OrbitTable));
       S1exp = kvector(0, Nspins * 3 - 1);
       S2exp = kmatrix(0, Nspins * 3 - 1, 0, Nspins * 3 - 1);
     }
-  if (input_flags->find_witness_exp || input_flags->find_witness_cross)
+  if (input_flags->find_witness)
   {
       one_tangle = dvector(0, Nspins - 1);
       concurrence = dmatrix(0, Nspins - 1, 0, Nspins - 1);
@@ -1171,7 +1154,7 @@ void deallocate(struct FLAGS *input_flags)
       free(spin_positions[i]);
     free(spin_positions);
   }
-  if (input_flags->find_expect || input_flags->find_witness_exp || input_flags->find_witness_cross)
+  if (input_flags->find_expect || input_flags->find_witness)
     {
       free(otable);
       free(canonical);
@@ -1179,7 +1162,7 @@ void deallocate(struct FLAGS *input_flags)
       freekvector(S1exp, 0, Nspins * 3 - 1);
       freekmatrix(S2exp, 0, Nspins * 3 - 1, 0, Nspins * 3 - 1);
     }
-  if (input_flags->find_witness_exp || input_flags->find_witness_cross)
+  if (input_flags->find_witness)
   {
       freedvector(one_tangle, 0, Nspins - 1);
       freedmatrix(concurrence, 0, Nspins - 1, 0, Nspins - 1);

@@ -172,7 +172,6 @@ void CrossLanczos(long long *symvalue, struct FLAGS *input_flags) //(Note: symva
     WriteCross(Nener, symvalue, flag, input_flags);
     if (input_flags->TEST_CROSS)
       LogMessageChar("Data has been written to file\n");
-
   } /*for flag*/
 
   return;
@@ -562,31 +561,30 @@ void ApplySmp(long long *q, long long SPMcross, komplex *resultvec, struct FLAGS
 
                 resultvec[l] += tmp;
               }
-
-              // End of this unit cell. Whereto next?
-              if (Ndimensions == 3)
-              {
-                new_state = SymOp(TransIds[Z], new_state);
-
-                if (input_flags->TEST_APPLYSMP)
-                  LogMessageCharInt("Going to (z)", new_state);
-              }
             }
-            if (Ndimensions >= 2)
+            // End of this unit cell. Whereto next?
+            if (Ndimensions == 3)
             {
-              new_state = SymOp(TransIds[Y], new_state);
+              new_state = SymOp(TransIds[Z], new_state);
 
               if (input_flags->TEST_APPLYSMP)
-                LogMessageCharInt("Going to (y)", new_state);
+                LogMessageCharInt("Going to (z)", new_state);
             }
           }
-          if (Ndimensions >= 1)
+          if (Ndimensions >= 2)
           {
-            new_state = SymOp(TransIds[X], new_state);
+            new_state = SymOp(TransIds[Y], new_state);
 
             if (input_flags->TEST_APPLYSMP)
-              LogMessageCharInt("Going to (x)", new_state);
+              LogMessageCharInt("Going to (y)", new_state);
           }
+        }
+        if (Ndimensions >= 1)
+        {
+          new_state = SymOp(TransIds[X], new_state);
+
+          if (input_flags->TEST_APPLYSMP)
+            LogMessageCharInt("Going to (x)", new_state);
         }
       }
       state = state << 1; // Goto next spin in u.c.

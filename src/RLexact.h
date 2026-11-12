@@ -33,8 +33,7 @@ struct FLAGS
   long long cross;           // DLC: I have literally no idea what this is
   long long find_expect;     // AKOE: Find expectation values x y z of the local spin operators
   long long find_expect_pm;  // AKOE: Find expectation values + - z of the local spin operators
-  long long find_witness_exp;    // AKOE: Find entanglement witnesses using expectation values
-  long long find_witness_cross;    // AKOE: Find entanglement witnesses using expectation values
+  long long find_witness;    // AKOE: Find entanglement witnesses using expectation values
 
 
   // OUTPUT SPECIFIERS
@@ -211,7 +210,7 @@ struct FLAGS
 #define SPMEND ".spm" // only used of FIND_CROSS and FIND_CROSS_PM
 #define SMPEND ".smp" // only used of FIND_CROSS and FIND_CROSS_PM
 #define EXPEND ".exp" // only used of find_expect
-#define WITEND ".wit" // only used of find_witness_exp and find_witness_cross
+#define WITEND ".wit" // only used of find_witness
 
 #define MATRIXFILENAME "SqMat"
 #define COEND ".gs"
@@ -250,11 +249,11 @@ struct FLAGS
 typedef struct {
     int p;
     int alpha;
-} CanonicalRep;
+} CanonicalSingle;
 
 typedef struct {
-  CanonicalRep first;
-  CanonicalRep second;
+  CanonicalSingle first;
+  CanonicalSingle second;
 } CanonicalPair;
 
 // The flat orbit table structure. Structure padding is larger than necessary here. start with the complex instead to fix this

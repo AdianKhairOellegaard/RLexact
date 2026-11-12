@@ -322,7 +322,7 @@ long long intro(struct FLAGS *input_flags)
       fflush(outfileexp);
     }
 
-    if (input_flags->find_witness_exp || input_flags->find_witness_cross)
+    if (input_flags->find_witness)
     {
       // strcpy(outfile_name,infile_name);
       // strcat(outfile_name,SPMEND);
@@ -370,8 +370,7 @@ void ReadInputFlags(char *filename, struct FLAGS *input_flags)
   input_flags->find_mag = 0;
   input_flags->find_expect = 0;
   input_flags->find_expect_pm = 0;
-  input_flags->find_witness_exp = 0;
-  input_flags->find_witness_cross = 0;
+  input_flags->find_witness = 0;
 
   input_flags->write_energies = 1; // Output energies and states as default
   input_flags->write_states = 1;
@@ -391,8 +390,7 @@ void ReadInputFlags(char *filename, struct FLAGS *input_flags)
   matchlines_wrapper(filedata, "Find_magnetisation", &input_flags->find_mag, true, input_flags);
   matchlines_wrapper(filedata, "Find_expect", &input_flags->find_expect, true, input_flags);
   matchlines_wrapper(filedata, "Find_expect_pm", &input_flags->find_expect_pm, true, input_flags);
-  matchlines_wrapper(filedata, "Find_witness_exp", &input_flags->find_witness_exp, true, input_flags);
-  matchlines_wrapper(filedata, "Find_witness_cross", &input_flags->find_witness_cross, true, input_flags);
+  matchlines_wrapper(filedata, "Find_witness", &input_flags->find_witness, true, input_flags);
 
   matchlines_wrapper(filedata, "Write_Energies", &input_flags->write_energies, true, input_flags);
   matchlines_wrapper(filedata, "Write_States", &input_flags->write_states, true, input_flags);
@@ -1084,7 +1082,7 @@ void outro(struct FLAGS *input_flags)
   }
   if (input_flags->find_expect)
     fclose(outfileexp);
-  if (input_flags->find_witness_exp || input_flags->find_witness_cross)
+  if (input_flags->find_witness)
     fclose(outfilewit);
   LogMessageChar("\n End of diagonalization program RLexact.\n");
 
@@ -1182,7 +1180,7 @@ void LogMessageChar3Vector(const char *str,
 void LogMessageGS(struct FLAGS *input_flags)
 {
   if (input_flags->m_sym)
-    fprintf(logfile,"Finding expectation value for the global ground state at m = %lf. Ground state energy %lf: \n", twom/2.0, gs_energy);
+    fprintf(logfile,"Finding expectation value for lowest energy state at m = %lf. Ground state energy %lf: \n", twom/2.0, gs_energy);
   else
     fprintf(logfile,"Finding expectation value in case of an external magnetic field h = %lf. Ground state energy %lf: \n", h, gs_energy);
 
@@ -1635,7 +1633,7 @@ void WriteQvalue(long long *qvec)
   int i;
   fprintf(outfile, "q-vector: (");
   fprintf(outfile, " %lld", qvec[0]);
-  for (i = 0; i < Nsym; i++)
+  for (i = 1; i < Nsym; i++) //AKOE: I changes this indexing to start at 1 instead of 0, which I imagine was the intention.
   {
     fprintf(outfile, ", %lld", qvec[i]);
   }

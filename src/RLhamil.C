@@ -82,7 +82,7 @@ void Hamil_Zeeman(unsigned long long bitmap, unsigned long long *new_state, long
     {                                 // Here J is simply the coupling strength
       for (int k = 0; k < Nspins; k++)
       {
-        mask0 = ((unsigned long long)1) << hamil_coup[k][0];
+        mask0 = ((unsigned long long)1) << k;//((unsigned long long)1) << hamil_coup[k][0]; AKOE: I removed the previous mask0 because it relied on using writing the coupling terms in a particular order in the input file which is an uneccessary complexity in the program for most purposes.
         s0 = (bitmap & mask0) != 0;
         if (input_flags->TEST_HAMZEE)
         {
