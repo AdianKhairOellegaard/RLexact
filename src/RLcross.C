@@ -586,7 +586,7 @@ void ApplySmp(long long *q, long long SPMcross, komplex *resultvec, struct FLAGS
           if (input_flags->TEST_APPLYSMP)
             LogMessageCharInt("Going to (x)", new_state);
         }
-      }
+      } //AKOE: Fixed unit cell loop structure for 2D and 3D lattices.
       state = state << 1; // Goto next spin in u.c.
     } // for spin jpp in unit cell
   } // for Nunique
